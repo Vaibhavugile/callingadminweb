@@ -1,0 +1,68 @@
+/* Tenants.css — matches your premium admin look */
+
+/* tokens (reuse from other pages) */
+:root {
+  --bg-1:#0b1220;
+  --bg-2:#061028;
+  --muted:#9fb0c4;
+  --accent:#6c5ce7;
+  --accent2:#00d4ff;
+  --glass: rgba(255,255,255,0.02);
+  --glass-2: rgba(255,255,255,0.01);
+  --radius: 12px;
+  --shadow: 0 12px 36px rgba(2,6,23,0.55);
+}
+
+/* page */
+.tenants-page { min-height:100vh; background:linear-gradient(180deg,var(--bg-1),var(--bg-2)); color:#eaf2ff; padding:28px; font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, Arial; }
+.tenants-inner { max-width:1000px; margin:0 auto; }
+
+/* header */
+.tenants-header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:16px; }
+.tenants-title { font-size:20px; font-weight:700; background:linear-gradient(90deg,var(--accent),var(--accent2)); -webkit-background-clip:text; color:transparent; }
+.tenants-sub { color:var(--muted); margin-top:4px; font-size:13px; }
+
+/* meta pill */
+.meta-pill { padding:8px 12px; border-radius:999px; background: linear-gradient(90deg, rgba(108,92,231,0.06), rgba(0,212,255,0.03)); color:#eaf2ff; box-shadow: 0 8px 22px rgba(12,24,80,0.05); font-weight:600; }
+
+/* form */
+.tenant-form { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:18px; padding:12px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); box-shadow: var(--shadow); }
+.form-row { display:flex; flex-direction:column; min-width:220px; }
+.form-label { font-size:13px; color:var(--muted); margin-bottom:6px; }
+.form-input { padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.03); background:transparent; color:#eaf2ff; outline:none; box-shadow: 0 8px 20px rgba(3,10,30,0.35); }
+.form-actions { display:flex; gap:8px; align-items:center; }
+
+/* buttons */
+.btn-primary { padding:10px 12px; border-radius:10px; background: linear-gradient(90deg,var(--accent),var(--accent2)); color:white; border:none; cursor:pointer; font-weight:700; box-shadow:0 10px 30px rgba(108,92,231,0.12); }
+.btn-ghost { padding:10px 12px; border-radius:10px; background: rgba(255,255,255,0.02); color:var(--muted); border:1px solid rgba(255,255,255,0.03); cursor:pointer; font-weight:700; }
+.btn { padding:8px 10px; border-radius:8px; background: rgba(255,255,255,0.02); color:var(--muted); border:1px solid rgba(255,255,255,0.03); cursor:pointer; }
+.btn.danger { background: linear-gradient(90deg,#ff8a8a,#ff6b6b); color:#230000; border:none; box-shadow:0 8px 28px rgba(255,80,80,0.12); }
+
+/* list */
+.tenants-list { display:flex; flex-direction:column; gap:12px; margin-top:8px; }
+
+/* card */
+.tenant-card { display:flex; gap:12px; align-items:center; justify-content:space-between; padding:12px; border-radius:12px; background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01)); border:1px solid rgba(255,255,255,0.03); box-shadow: var(--shadow); }
+.tenant-left { display:flex; gap:12px; align-items:center; min-width:320px; }
+.tenant-avatar { width:52px; height:52px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:linear-gradient(180deg,var(--accent),var(--accent2)); font-weight:800; color:white; font-size:18px; box-shadow: 0 8px 26px rgba(108,92,231,0.12); }
+.tenant-info { display:flex; flex-direction:column; gap:4px; }
+.tenant-name { font-weight:700; font-size:15px; color:#eaf2ff; }
+.tenant-meta { color:var(--muted); font-size:13px; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace; }
+
+/* mid */
+.tenant-mid { flex:1; color:var(--muted); font-size:13px; display:flex; flex-direction:column; gap:6px; }
+
+/* actions align */
+.tenant-actions { display:flex; gap:8px; align-items:center; }
+
+/* small error */
+.error-note { margin-top:12px; color:#ffb3b3; background: rgba(255,0,0,0.02); padding:8px 12px; border-radius:8px; }
+
+/* responsive */
+@media (max-width:900px) {
+  .tenant-form { flex-direction:column; align-items:stretch; }
+  .tenant-left { min-width:0; }
+  .tenant-card { flex-direction:column; align-items:flex-start; gap:8px; }
+  .tenant-actions { width:100%; display:flex; justify-content:flex-end; gap:8px; }
+}

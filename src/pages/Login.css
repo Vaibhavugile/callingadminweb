@@ -1,0 +1,187 @@
+/* src/pages/Login.css */
+
+/* -- Fonts (optional) -- you can move to index.html or keep here */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
+
+:root{
+  --bg1: #0f172a; /* dark navy */
+  --bg2: #071234; /* deep indigo */
+  --glass: rgba(255,255,255,0.06);
+  --glass-2: rgba(255,255,255,0.04);
+  --accent: #6c5ce7;
+  --accent-2: #00d4ff;
+  --muted: #9aa4b2;
+  --card-radius: 14px;
+  --card-padding: 28px;
+  --ease: cubic-bezier(.16,.84,.48,1);
+}
+
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0;
+  font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: linear-gradient(180deg, var(--bg1) 0%, var(--bg2) 100%);
+  color: #e6eef8;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  overflow:auto;
+}
+
+/* full-screen container */
+.login-full {
+  min-height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:40px 20px;
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+}
+
+/* animated gradient overlay */
+.bg-gradient {
+  position:absolute;
+  inset: -20% -20% auto -20%;
+  height:160%;
+  background: radial-gradient(40% 60% at 10% 20%, rgba(108,92,231,0.14), transparent 8%),
+              radial-gradient(30% 50% at 90% 80%, rgba(0,212,255,0.08), transparent 8%);
+  filter: blur(28px) saturate(120%);
+  transform: rotate(-6deg);
+  animation: gradientShift 14s linear infinite;
+  z-index:0;
+  pointer-events:none;
+}
+@keyframes gradientShift {
+  0%{transform: translateY(0) rotate(-6deg) scale(1)}
+  50%{transform: translateY(-8%) rotate(-2deg) scale(1.04)}
+  100%{transform: translateY(0) rotate(-6deg) scale(1)}
+}
+
+/* floating organic blobs */
+.blob {
+  position:absolute;
+  width:420px;height:420px;
+  background: radial-gradient(circle at 30% 30%, rgba(108,92,231,0.18), rgba(0,212,255,0.08) 40%, transparent 60%);
+  filter: blur(36px);
+  transform: translate3d(0,0,0);
+  z-index:0;
+  pointer-events:none;
+  animation: floaty 10s ease-in-out infinite;
+  opacity:0.95;
+  border-radius:40% 60% 55% 45% / 55% 40% 60% 45%;
+}
+.blob.b1 { left: -10%; top: -6%; animation-duration: 12s; transform-origin:center; }
+.blob.b2 { right: -12%; bottom: -8%; animation-duration: 14s; transform-origin:center; }
+
+/* subtle particle specks */
+.particles {
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image: radial-gradient(circle, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 160px 160px;
+  mix-blend-mode: screen;
+  opacity: 0.25;
+  animation: particleDrift 18s linear infinite;
+}
+@keyframes particleDrift { 0%{transform:translateY(0)} 100%{transform:translateY(-30px)} }
+@keyframes floaty {
+  0%{transform: translateY(0) rotate(0deg)}
+  50%{transform: translateY(-18px) rotate(6deg)}
+  100%{transform: translateY(0) rotate(0deg)}
+}
+
+/* login card (glass) */
+.login-card {
+  position:relative;
+  z-index: 2;
+  width:100%;
+  max-width:460px;
+  padding:var(--card-padding);
+  border-radius:var(--card-radius);
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+  border: 1px solid rgba(255,255,255,0.05);
+  box-shadow: 0 10px 30px rgba(3,6,23,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  backdrop-filter: blur(8px) saturate(120%);
+  transform: translateY(8px);
+  animation: cardEntrance .7s var(--ease) both;
+}
+
+/* entrance */
+@keyframes cardEntrance {
+  from { opacity: 0; transform: translateY(18px) scale(.995) }
+  to { opacity: 1; transform: translateY(0) scale(1) }
+}
+
+/* heading */
+.login-card h2 { margin:0 0 6px 0; font-size:22px; font-weight:700; color:#f8fbff; }
+.login-card .sub { color:var(--muted); font-size:13px; margin-bottom:18px; }
+
+/* form */
+.form-row { display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+.input {
+  appearance:none;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  border:1px solid rgba(255,255,255,0.06);
+  padding:12px 14px;
+  border-radius:10px;
+  color:#eaf2ff;
+  font-size:14px;
+  outline:none;
+  transition: box-shadow .18s var(--ease), transform .12s var(--ease), border-color .12s var(--ease);
+  box-shadow: 0 2px 6px rgba(2,6,23,0.45);
+}
+.input::placeholder { color: rgba(230,238,248,0.45); font-weight:500; }
+.input:focus {
+  border-color: rgba(108,92,231,0.9);
+  box-shadow: 0 6px 18px rgba(108,92,231,0.12), 0 1px 0 rgba(108,92,231,0.06) inset;
+  transform: translateY(-1px);
+}
+
+/* primary button */
+.btn {
+  display:inline-flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  padding:10px 14px;
+  border-radius:10px;
+  border: none;
+  font-weight:600;
+  color:white;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 24px rgba(108,92,231,0.12);
+  transition: transform .12s var(--ease), box-shadow .12s var(--ease), opacity .12s var(--ease);
+}
+.btn:active { transform: translateY(1px) scale(.998); }
+.btn[disabled] { opacity:.6; cursor:not-allowed; transform:none; box-shadow:none; }
+
+/* google button */
+.btn-google {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));
+  color:#e6eef8;
+  border:1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 6px 16px rgba(2,6,23,0.45);
+  font-weight:600;
+}
+.google-inner { display:flex; align-items:center; gap:10px; }
+.google-logo { width:18px; height:18px; display:inline-block; }
+
+/* links */
+.link { color: #cbd8ff; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:4px; }
+.small-muted { font-size:13px; color:var(--muted); }
+
+/* error */
+.error-box { background: rgba(255,40,40,0.08); color: #ffd6d6; padding:8px 10px; border-radius:8px; border:1px solid rgba(255,40,40,0.12); margin-bottom:10px; }
+
+/* footer */
+.login-footer { margin-top:14px; font-size:13px; color:var(--muted); text-align:center; }
+
+/* responsive */
+@media (max-width:520px) {
+  .login-card { margin: 16px; padding:20px; border-radius:12px; }
+  .blob { display:none }
+}
