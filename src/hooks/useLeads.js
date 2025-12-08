@@ -8,17 +8,22 @@ import { collectionGroup, onSnapshot, query } from "firebase/firestore";
  * Returns: { leads, loading, error }
  *
  * Each lead object includes .latestCall if any:
- * latestCall: { id, createdAt, createdMs, direction, durationInSeconds, phoneNumber }
+ * latestCall: { id, createdAt, createdMs, direction, durationInSeconds, phoneNumber, _raw, _path }
  *
  * Implementation notes:
- * - We keep a latestCallsMap keyed by leadId (or lead path fallback) populated from
- *   collectionGroup("calls"). We always pick the call with highest createdMs.
- * - We merge latestCall into the lead objects before returning them.
+ * - We keep a latestCallsMap keyed by **tenantId + "__" + leadId**.
+ * - This avoids mixing calls for the same leadId across different tenants,
+ *   which can happen because lead IDs are deterministic from phone only.
  */
 
 function toMsFromPossibleTimestamp(v) {
   if (!v) return null;
-  if (v.seconds) return v.seconds * 1000 + (v.nanoseconds ? Math.floor(v.nanoseconds / 1000000) : 0);
+  if (v.seconds) {
+    return (
+      v.seconds * 1000 +
+      (v.nanoseconds ? Math.floor(v.nanoseconds / 1000000) : 0)
+    );
+  }
   if (typeof v === "number") return v;
   if (v instanceof Date) return v.getTime();
   const parsed = Date.parse(String(v));
@@ -34,54 +39,63 @@ export default function useLeads() {
     setLoading(true);
     setError(null);
 
-    // map: leadKey -> latest call object
-    // leadKey will be leadId if present, otherwise leadDocPath (parent path)
+    // map: tenantId__leadId -> latest call object
     const latestCallsMap = new Map();
 
-    // subscribe to calls collectionGroup and track latest per lead
+    // ---------------- SUBSCRIBE TO CALLS ----------------
     const callsQ = query(collectionGroup(db, "calls"));
     const unsubCalls = onSnapshot(
       callsQ,
       (snap) => {
         try {
-          for (const d of snap.docChanges()) {
-            // docChanges may include added/modified/removed
-            // We'll recompute map using full snapshot for simplicity
-          }
-
           // For stability we process entire snapshot and rebuild map
           latestCallsMap.clear();
+
           for (const doc of snap.docs) {
             const data = doc.data() || {};
-            // determine leadKey: prefer data.leadId, else extract from path
-            let leadKey = data.leadId ?? null;
-            if (!leadKey) {
-              // path like "tenants/{tenantId}/leads/{leadId}/calls/{callId}"
-              const parts = doc.ref.path.split("/");
-              // try to find "leads" then next segment is leadId
-              for (let i = 0; i < parts.length - 1; i++) {
-                if (parts[i] === "leads") {
-                  leadKey = parts[i + 1];
-                  break;
-                }
+
+            // Extract tenantId and leadId from the path:
+            // "tenants/{tenantId}/leads/{leadId}/calls/{callId}"
+            const parts = doc.ref.path.split("/");
+            let tenantIdFromPath = null;
+            let leadIdFromPath = null;
+
+            for (let i = 0; i < parts.length - 1; i++) {
+              if (parts[i] === "tenants") {
+                tenantIdFromPath = parts[i + 1];
+              }
+              if (parts[i] === "leads") {
+                leadIdFromPath = parts[i + 1];
               }
             }
-            if (!leadKey) {
-              // fallback to call doc path (unique but leads cannot be keyed)
-              leadKey = doc.ref.path;
+
+            // Prefer explicit leadId field but still keep tenantId in key
+            let leadId = data.leadId || leadIdFromPath || null;
+            const tenantId = tenantIdFromPath || data.tenantId || null;
+
+            if (!leadId) {
+              // As a last resort, skip: we cannot safely map this call
+              // to a lead across tenants.
+              continue;
             }
+
+            // 🔑 tenant-scoped key (fixes cross-tenant mixing)
+            const leadKey = tenantId ? `${tenantId}__${leadId}` : leadId;
 
             const createdRaw = data.createdAt ?? data.created_at ?? null;
             const createdMs = toMsFromPossibleTimestamp(createdRaw) ?? 0;
 
-            // pick fields we need
             const callObj = {
               id: doc.id,
               createdAt: createdRaw,
               createdMs,
               direction: data.direction ?? data.dir ?? null,
-              durationInSeconds: Number(data.durationInSeconds ?? data.duration ?? 0),
+              durationInSeconds: Number(
+                data.durationInSeconds ?? data.duration ?? 0
+              ),
               phoneNumber: data.phoneNumber ?? data.from ?? null,
+              tenantId,
+              leadId,
               // keep raw data reference if needed
               _raw: data,
               _path: doc.ref.path,
@@ -92,9 +106,6 @@ export default function useLeads() {
               latestCallsMap.set(leadKey, callObj);
             }
           }
-
-          // After rebuilding latestCallsMap, get current leads snapshot and merge if already loaded
-          // But since leads subscription below will set leads and merge again, we just keep map here.
         } catch (e) {
           console.error("useLeads calls snapshot processing error", e);
           setError(e);
@@ -106,15 +117,15 @@ export default function useLeads() {
       }
     );
 
-    // subscribe to leads collectionGroup
+    // ---------------- SUBSCRIBE TO LEADS ----------------
     const leadsQ = query(collectionGroup(db, "leads"));
     const unsubLeads = onSnapshot(
       leadsQ,
       (snap) => {
         try {
-          // Build leads array with tenantId extraction and merge latestCall from map
           const arr = snap.docs.map((d) => {
             const docData = d.data() || {};
+
             // extract tenantId from path
             const pathParts = d.ref.path.split("/");
             let tenantId = null;
@@ -125,13 +136,14 @@ export default function useLeads() {
               }
             }
 
-            // leadKey same logic as calls: leadId (d.id)
-            const leadKey = d.id;
+            // 👇 key must match what we used in the calls snapshot
+            const leadId = d.id;
+            const leadKey = tenantId ? `${tenantId}__${leadId}` : leadId;
 
             const latestCall = latestCallsMap.get(leadKey) ?? null;
 
             return {
-              id: d.id,
+              id: leadId,
               tenantId,
               data: docData,
               ...docData,
@@ -140,13 +152,19 @@ export default function useLeads() {
             };
           });
 
-          // sort by lastSeen fallback (we keep same behavior as before)
+          // sort by lastSeen-ish fields (same as before)
           function pickLastSeenMs(leadObj) {
-            const d = leadObj.lastSeen ?? leadObj.last_seen ?? leadObj.lastSeenAt ?? null;
+            const dVal =
+              leadObj.lastSeen ??
+              leadObj.last_seen ??
+              leadObj.lastSeenAt ??
+              null;
             const li = leadObj.lastInteraction ?? leadObj.last_interaction ?? null;
             const lu = leadObj.lastUpdated ?? leadObj.last_updated ?? null;
             const ca = leadObj.createdAt ?? leadObj.created_at ?? null;
-            const candidates = [d, li, lu, ca].map(toMsFromPossibleTimestamp).filter(Boolean);
+            const candidates = [dVal, li, lu, ca]
+              .map(toMsFromPossibleTimestamp)
+              .filter(Boolean);
             return candidates.length ? Math.max(...candidates) : 0;
           }
 

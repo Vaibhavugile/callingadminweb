@@ -11,6 +11,40 @@ import {
 } from "firebase/firestore";
 
 /**
+ * Helper: consistent logic for "missed" / "rejected" filters
+ *
+ * Usage:
+ *   import useCalls, { matchCallFilter } from "../hooks/useCalls";
+ *   ...
+ *   const filtered = calls.filter(c => matchCallFilter(c.data, activeFilter));
+ */
+export function matchCallFilter(callData = {}, filter) {
+  if (!filter || filter.toLowerCase() === "all") return true;
+
+  const dir = (callData.direction || "").toLowerCase();
+  const dur = Number(callData.durationInSeconds || 0);
+  const finalOutcome = (callData.finalOutcome || "").toLowerCase();
+
+  // MISSED: inbound + 0 sec OR finalOutcome === "missed"
+  if (
+    filter.toLowerCase() === "missed" &&
+    !((dir.includes("in") && dur === 0) || finalOutcome === "missed")
+  ) {
+    return false;
+  }
+
+  // REJECTED: outbound + 0 sec OR finalOutcome === "rejected"
+  if (
+    filter.toLowerCase() === "rejected" &&
+    !((dir.includes("out") && dur === 0) || finalOutcome === "rejected")
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * useCalls({ pageSize = 200 })
  * - Returns: { calls: Array, loading, error, refetch }
  *
@@ -41,7 +75,7 @@ export default function useCalls({ pageSize = 300 } = {}) {
     leadCacheRef.current.clear();
 
     // query across all calls subcollections sorted by createdAt (descending)
-    // NOTE: replace 'createdAt' with your timestamp field name if different (e.g., 'ts')
+    // path: tenants/{tenantId}/leads/{leadId}/calls/{callId}
     const callsGroup = collectionGroup(db, "calls");
     const q = query(callsGroup, orderBy("createdAt", "desc"), limit(pageSize));
 
@@ -51,12 +85,13 @@ export default function useCalls({ pageSize = 300 } = {}) {
         try {
           // build basic call objects and collect unique lead doc refs (path)
           const callItems = [];
-          const leadDocRefsToFetch = new Map(); // key -> { leadPath, leadId, tenantId }
+          const leadDocRefsToFetch = new Map(); // key -> { leadDocRef, leadKey, leadId, tenantId }
 
           snap.docs.forEach((d) => {
             const callData = d.data() || {};
+
             // derive leadId and tenantId from doc.ref
-            // path is tenants/{tenantId}/leads/{leadId}/calls/{callId}
+            // tenants/{tenantId}/leads/{leadId}/calls/{callId}
             const callRef = d.ref;
             const callsColRef = callRef.parent; // calls collection
             const leadDocRef = callsColRef.parent; // lead doc
@@ -68,18 +103,29 @@ export default function useCalls({ pageSize = 300 } = {}) {
 
             // store for later fetch
             const leadKey = `${tenantId}||${leadId}`;
-            if (!leadCacheRef.current.has(leadKey) && !leadDocRefsToFetch.has(leadKey)) {
-              leadDocRefsToFetch.set(leadKey, { leadDocRef, leadKey, leadId, tenantId });
+            if (
+              !leadCacheRef.current.has(leadKey) &&
+              !leadDocRefsToFetch.has(leadKey)
+            ) {
+              leadDocRefsToFetch.set(leadKey, {
+                leadDocRef,
+                leadKey,
+                leadId,
+                tenantId,
+              });
             }
 
             // normalize timestamp fields (support Firestore Timestamp or epoch ms or 'ts')
             let createdAtDate = null;
             if (callData.createdAt) {
-              if (callData.createdAt.seconds) createdAtDate = callData.createdAt.toDate();
-              else if (typeof callData.createdAt === "number") createdAtDate = new Date(callData.createdAt);
+              if (callData.createdAt.seconds)
+                createdAtDate = callData.createdAt.toDate();
+              else if (typeof callData.createdAt === "number")
+                createdAtDate = new Date(callData.createdAt);
             } else if (callData.ts) {
               if (callData.ts.seconds) createdAtDate = callData.ts.toDate();
-              else if (typeof callData.ts === "number") createdAtDate = new Date(callData.ts);
+              else if (typeof callData.ts === "number")
+                createdAtDate = new Date(callData.ts);
             }
 
             callItems.push({
@@ -96,33 +142,50 @@ export default function useCalls({ pageSize = 300 } = {}) {
           // fetch all missing lead docs in parallel (but only once per unique lead)
           const leadFetches = [];
           for (const [leadKey, info] of leadDocRefsToFetch.entries()) {
-            // getDoc(info.leadDocRef) -> returns a Promise
             leadFetches.push(
               (async () => {
                 try {
                   const snap = await getDoc(info.leadDocRef);
                   if (snap.exists()) {
                     const data = snap.data();
-                    // normalize epoch ms fields if mobile stores them as numbers
                     const normalized = { id: snap.id, ...data };
-                    // convert lastInteraction if numeric epoch ms
-                    if (normalized.lastInteraction && typeof normalized.lastInteraction === "number") {
-                      normalized.lastInteractionDate = new Date(normalized.lastInteraction);
-                    } else if (normalized.lastInteraction && normalized.lastInteraction.seconds) {
-                      normalized.lastInteractionDate = normalized.lastInteraction.toDate();
+
+                    // normalize lastInteraction -> lastInteractionDate
+                    if (
+                      normalized.lastInteraction &&
+                      typeof normalized.lastInteraction === "number"
+                    ) {
+                      normalized.lastInteractionDate = new Date(
+                        normalized.lastInteraction
+                      );
+                    } else if (
+                      normalized.lastInteraction &&
+                      normalized.lastInteraction.seconds
+                    ) {
+                      normalized.lastInteractionDate =
+                        normalized.lastInteraction.toDate();
                     } else {
                       normalized.lastInteractionDate = null;
                     }
 
                     leadCacheRef.current.set(leadKey, normalized);
                   } else {
-                    // store a placeholder so we don't refetch repeatedly
-                    leadCacheRef.current.set(leadKey, { id: info.leadId, _missing: true });
+                    // placeholder to avoid re-fetch loops
+                    leadCacheRef.current.set(leadKey, {
+                      id: info.leadId,
+                      _missing: true,
+                    });
                   }
                 } catch (err) {
-                  // record placeholder to avoid infinite retries
-                  leadCacheRef.current.set(leadKey, { id: info.leadId, _error: true });
-                  console.error("Error fetching lead doc", info.leadId, err);
+                  leadCacheRef.current.set(leadKey, {
+                    id: info.leadId,
+                    _error: true,
+                  });
+                  console.error(
+                    "Error fetching lead doc",
+                    info.leadId,
+                    err
+                  );
                 }
               })()
             );
@@ -159,8 +222,7 @@ export default function useCalls({ pageSize = 300 } = {}) {
   }, [pageSize]);
 
   const refetch = () => {
-    // simple refetch: cancel, clear cache and re-run effect by toggling state is more work.
-    // For now we just clear cache and leave the snapshot to update automatically.
+    // For now we just clear cache; live snapshot will bring new data
     leadCacheRef.current.clear();
   };
 
