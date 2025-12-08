@@ -45,22 +45,25 @@ export function matchCallFilter(callData = {}, filter) {
 }
 
 /**
- * useCalls({ pageSize = 200 })
- * - Returns: { calls: Array, loading, error, refetch }
+ * useCalls({ pageSize = 300, allowedTenantIds })
+ * - Returns: { calls, loading, error, refetch }
  *
- * Each returned call object will include:
+ * Each returned call object:
  * {
- *   id, data..., // call doc fields
- *   leadId, tenantId,
- *   lead: { id, ...leadDocData } // may be null if not loaded
+ *   id,
+ *   data,        // call doc fields
+ *   createdAt,   // JS Date (normalized from createdAt/ts)
+ *   leadId,
+ *   tenantId,
+ *   lead,        // { id, ...leadDocData } or null
  * }
  *
  * IMPORTANT:
- * - Uses collectionGroup('calls') to listen for calls across all tenants
- * - Merges lead doc fields by fetching parent lead doc for each unique lead
- * - Caches lead docs in memory while the hook is mounted to avoid repeated reads
+ * - Uses collectionGroup('calls') across all tenants.
+ * - If allowedTenantIds is a non-empty array, only calls whose parent
+ *   tenantId is in that list are kept.
  */
-export default function useCalls({ pageSize = 300 } = {}) {
+export default function useCalls({ pageSize = 300, allowedTenantIds = null } = {}) {
   const [calls, setCalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -100,6 +103,13 @@ export default function useCalls({ pageSize = 300 } = {}) {
 
             const leadId = leadDocRef.id;
             const tenantId = tenantDocRef ? tenantDocRef.id : null;
+
+            // 🔒 Restrict by allowedTenantIds if provided
+            if (Array.isArray(allowedTenantIds) && allowedTenantIds.length > 0) {
+              if (!tenantId || !allowedTenantIds.includes(tenantId)) {
+                return; // skip this call
+              }
+            }
 
             // store for later fetch
             const leadKey = `${tenantId}||${leadId}`;
@@ -181,11 +191,7 @@ export default function useCalls({ pageSize = 300 } = {}) {
                     id: info.leadId,
                     _error: true,
                   });
-                  console.error(
-                    "Error fetching lead doc",
-                    info.leadId,
-                    err
-                  );
+                  console.error("Error fetching lead doc", info.leadId, err);
                 }
               })()
             );
@@ -219,7 +225,7 @@ export default function useCalls({ pageSize = 300 } = {}) {
     return () => {
       if (unsubRef.current) unsubRef.current();
     };
-  }, [pageSize]);
+  }, [pageSize, allowedTenantIds]);
 
   const refetch = () => {
     // For now we just clear cache; live snapshot will bring new data

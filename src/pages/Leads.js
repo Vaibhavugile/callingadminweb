@@ -10,7 +10,11 @@ import "./Leads.css";
 
 const toMsFromPossibleTimestamp = (v) => {
   if (!v) return null;
-  if (v.seconds) return v.seconds * 1000 + (v.nanoseconds ? Math.floor(v.nanoseconds / 1000000) : 0);
+  if (v.seconds)
+    return (
+      v.seconds * 1000 +
+      (v.nanoseconds ? Math.floor(v.nanoseconds / 1000000) : 0)
+    );
   if (typeof v === "number") return v;
   if (v instanceof Date) return v.getTime();
   const parsed = Date.parse(String(v));
@@ -20,7 +24,8 @@ const toMsFromPossibleTimestamp = (v) => {
 const fmtIso = (ts) => {
   if (!ts) return "";
   if (ts.seconds) return new Date(ts.seconds * 1000).toISOString();
-  if (typeof ts === "number") return new Date(ts > 1e12 ? ts : ts * 1000).toISOString();
+  if (typeof ts === "number")
+    return new Date(ts > 1e12 ? ts : ts * 1000).toISOString();
   if (ts instanceof Date) return ts.toISOString();
   const parsed = Date.parse(String(ts));
   return Number.isNaN(parsed) ? String(ts) : new Date(parsed).toISOString();
@@ -29,7 +34,8 @@ const fmtIso = (ts) => {
 const fmtLocal = (ts) => {
   if (!ts) return "";
   if (ts.seconds) return new Date(ts.seconds * 1000).toLocaleString();
-  if (typeof ts === "number") return new Date(ts > 1e12 ? ts : ts * 1000).toLocaleString();
+  if (typeof ts === "number")
+    return new Date(ts > 1e12 ? ts : ts * 1000).toLocaleString();
   if (ts instanceof Date) return ts.toLocaleString();
   const parsed = Date.parse(String(ts));
   return Number.isNaN(parsed) ? String(ts) : new Date(parsed).toLocaleString();
@@ -38,10 +44,13 @@ const fmtLocal = (ts) => {
 const fmtDateOnly = (ts) => {
   if (!ts) return "";
   if (ts.seconds) return new Date(ts.seconds * 1000).toLocaleDateString();
-  if (typeof ts === "number") return new Date(ts > 1e12 ? ts : ts * 1000).toLocaleDateString();
+  if (typeof ts === "number")
+    return new Date(ts > 1e12 ? ts : ts * 1000).toLocaleDateString();
   if (ts instanceof Date) return ts.toLocaleDateString();
   const parsed = Date.parse(String(ts));
-  return Number.isNaN(parsed) ? String(ts) : new Date(parsed).toLocaleDateString();
+  return Number.isNaN(parsed)
+    ? String(ts)
+    : new Date(parsed).toLocaleDateString();
 };
 
 const fmtDuration = (sec) => {
@@ -73,7 +82,12 @@ const latestCallStatus = (direction, durationSeconds) => {
 function escapeCsvCell(value) {
   if (value === null || typeof value === "undefined") return "";
   const s = String(value);
-  if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
+  if (
+    s.includes('"') ||
+    s.includes(",") ||
+    s.includes("\n") ||
+    s.includes("\r")
+  ) {
     return `"${s.replace(/"/g, '""')}"`;
   }
   return s;
@@ -124,16 +138,18 @@ function leadsToCsvRows(preparedArray) {
       flat.nextFollowUp ? fmtIso(flat.nextFollowUp) : "",
       flat.nextFollowUp ? fmtLocal(flat.nextFollowUp) : "",
       flat.requirements || "",
-      // notes preview (first 200 chars)
-      (flat.notesText ? (flat.notesText.length > 200 ? flat.notesText.slice(0, 200) + "…" : flat.notesText) : ""),
-      // latest call
-      latest ? (latest.id || "") : "",
-      latest ? (fmtIso(latest.createdAt) || "") : "",
-      latest ? (fmtLocal(latest.createdAt) || "") : "",
-      latest ? (latest.direction || "") : "",
+      flat.notesText
+        ? flat.notesText.length > 200
+          ? flat.notesText.slice(0, 200) + "…"
+          : flat.notesText
+        : "",
+      latest ? latest.id || "" : "",
+      latest ? fmtIso(latest.createdAt) || "" : "",
+      latest ? fmtLocal(latest.createdAt) || "" : "",
+      latest ? latest.direction || "" : "",
       latest ? String(latest.durationInSeconds || 0) : "",
-      latest ? (fmtDuration(latest.durationInSeconds || 0) || "") : "",
-      latest ? (latest.status || "") : "",
+      latest ? fmtDuration(latest.durationInSeconds || 0) || "" : "",
+      latest ? latest.status || "" : "",
     ].map(escapeCsvCell);
 
     rows.push(row.join(","));
@@ -157,17 +173,57 @@ function downloadCsv(filename, csvText) {
 /* ================ Arrow icons (reused) ================ */
 function ArrowInIcon() {
   return (
-    <svg className="arrow-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
-      <path d="M20 12H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M10 16L6 12L10 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className="arrow-icon"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      focusable="false"
+    >
+      <path
+        d="M20 12H6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10 16L6 12L10 8"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 function ArrowOutIcon() {
   return (
-    <svg className="arrow-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden focusable="false">
-      <path d="M4 12H18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M14 8L18 12L14 16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      className="arrow-icon"
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      focusable="false"
+    >
+      <path
+        d="M4 12H18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M14 8L18 12L14 16"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -177,7 +233,30 @@ function ArrowOutIcon() {
 export default function LeadsPage() {
   // top-level hooks
   const { profile } = useUserProfile();
-  const { leads, loading, error } = useLeads();
+
+  // derive connected tenant IDs from profile (can be ["t1","t2"] or array of objects)
+  const connectedTenantIds = useMemo(() => {
+    if (!profile || !Array.isArray(profile.connectedTenants)) return null;
+    const ids = profile.connectedTenants
+      .map((t) => {
+        if (typeof t === "string") return t;
+        if (t && typeof t === "object") {
+          return t.id || t.tenantId || t.tenant || null;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    return ids.length ? ids : null;
+  }, [profile]);
+
+  const hasConnectedTenants =
+    Array.isArray(connectedTenantIds) && connectedTenantIds.length > 0;
+
+  // useLeads restricted to connected tenants.
+  // If there are NO connected tenants, pass [] so hook returns nothing.
+  const { leads, loading, error } = useLeads({
+    allowedTenantIds: hasConnectedTenants ? connectedTenantIds : [],
+  });
 
   // tenants for dropdown
   const [tenants, setTenants] = useState([]);
@@ -196,7 +275,7 @@ export default function LeadsPage() {
     return () => unsub();
   }, []);
 
-  // UI state (same as before)
+  // UI state
   const [q, setQ] = useState("");
   const [tenantFilter, setTenantFilter] = useState("all");
   const [callStatusFilter, setCallStatusFilter] = useState("all");
@@ -213,15 +292,25 @@ export default function LeadsPage() {
         tenantId: l.tenantId ?? l.data?.tenantId ?? "",
         id: l.id ?? "",
         name: l.name ?? l.data?.name ?? "",
-        phoneNumber: l.phoneNumber ?? l.phone ?? l.data?.phoneNumber ?? "",
+        phoneNumber:
+          l.phoneNumber ?? l.phone ?? l.data?.phoneNumber ?? "",
         address: l.address ?? l.data?.address ?? "",
-        notesText: Array.isArray(l.notes) ? l.notes.map((n) => n.text || n.note || "").join(" ") : (typeof l.notes === "string" ? l.notes : (l.data?.notes ? JSON.stringify(l.data.notes) : "")),
+        notesText: Array.isArray(l.notes)
+          ? l.notes
+              .map((n) => n.text || n.note || "")
+              .join(" ")
+          : typeof l.notes === "string"
+          ? l.notes
+          : l.data?.notes
+          ? JSON.stringify(l.data.notes)
+          : "",
         status: l.status ?? l.data?.status ?? "",
         eventDate: l.eventDate ?? l.data?.eventDate ?? null,
         nextFollowUp: l.nextFollowUp ?? l.data?.nextFollowUp ?? null,
         requirements: l.requirements ?? l.data?.requirements ?? "",
         lastSeen: l.lastSeen ?? l.data?.lastSeen ?? null,
-        lastInteraction: l.lastInteraction ?? l.data?.lastInteraction ?? null,
+        lastInteraction:
+          l.lastInteraction ?? l.data?.lastInteraction ?? null,
         latestCall: l.latestCall ?? null,
       };
 
@@ -236,8 +325,17 @@ export default function LeadsPage() {
         flat.requirements,
         flat.lastSeen ? String(flat.lastSeen) : "",
         flat.lastInteraction ? String(flat.lastInteraction) : "",
-        flat.latestCall ? `${flat.latestCall.direction || ""} ${flat.latestCall.durationInSeconds || ""} ${flat.latestCall.phoneNumber || ""} ${flat.latestCall.id || ""}` : "",
-      ].filter(Boolean).join(" ").toLowerCase();
+        flat.latestCall
+          ? `${flat.latestCall.direction || ""} ${
+              flat.latestCall.durationInSeconds || ""
+            } ${flat.latestCall.phoneNumber || ""} ${
+              flat.latestCall.id || ""
+            }`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
       let latestCallDerived = null;
       if (flat.latestCall) {
@@ -246,11 +344,27 @@ export default function LeadsPage() {
           id: lc.id || "",
           createdAt: lc.createdAt ?? lc._raw?.createdAt ?? null,
           createdMs: lc.createdMs ?? null,
-          direction: lc.direction ?? lc._raw?.direction ?? lc._raw?.dir ?? "",
-          durationInSeconds: Number(lc.durationInSeconds ?? lc._raw?.durationInSeconds ?? lc._raw?.duration ?? 0),
-          phoneNumber: lc.phoneNumber ?? lc._raw?.phoneNumber ?? lc._raw?.from ?? "",
+          direction:
+            lc.direction ??
+            lc._raw?.direction ??
+            lc._raw?.dir ??
+            "",
+          durationInSeconds: Number(
+            lc.durationInSeconds ??
+              lc._raw?.durationInSeconds ??
+              lc._raw?.duration ??
+              0
+          ),
+          phoneNumber:
+            lc.phoneNumber ??
+            lc._raw?.phoneNumber ??
+            lc._raw?.from ??
+            "",
         };
-        latestCallDerived.status = latestCallStatus(latestCallDerived.direction, latestCallDerived.durationInSeconds);
+        latestCallDerived.status = latestCallStatus(
+          latestCallDerived.direction,
+          latestCallDerived.durationInSeconds
+        );
       }
 
       return { raw: l, flat, haystack, latestCallDerived };
@@ -260,8 +374,13 @@ export default function LeadsPage() {
   // date range parsing
   const dateRangeMs = useMemo(() => {
     const s = startDate ? Date.parse(startDate + "T00:00:00") : null;
-    const e = endDate ? Date.parse(endDate + "T23:59:59.999") : null;
-    return { startMs: Number.isNaN(s) ? null : s, endMs: Number.isNaN(e) ? null : e };
+    const e = endDate
+      ? Date.parse(endDate + "T23:59:59.999")
+      : null;
+    return {
+      startMs: Number.isNaN(s) ? null : s,
+      endMs: Number.isNaN(e) ? null : e,
+    };
   }, [startDate, endDate]);
 
   // filtered
@@ -271,7 +390,19 @@ export default function LeadsPage() {
       const flat = p.flat;
       const latest = p.latestCallDerived;
 
-      if (tenantFilter !== "all" && flat.tenantId !== tenantFilter) return false;
+      // tenant filter (UI)
+      if (tenantFilter !== "all" && flat.tenantId !== tenantFilter)
+        return false;
+
+      // extra safety: if connectedTenantIds exist, do not show leads outside them
+      if (
+        Array.isArray(connectedTenantIds) &&
+        connectedTenantIds.length > 0 &&
+        !connectedTenantIds.includes(flat.tenantId)
+      ) {
+        return false;
+      }
+
       if (showOnlyWithCall === "withCall" && !latest) return false;
       if (showOnlyWithCall === "withoutCall" && latest) return false;
 
@@ -280,27 +411,64 @@ export default function LeadsPage() {
         if (st !== callStatusFilter) return false;
       }
 
-      if (dateField !== "none" && (dateRangeMs.startMs !== null || dateRangeMs.endMs !== null)) {
+      if (
+        dateField !== "none" &&
+        (dateRangeMs.startMs !== null ||
+          dateRangeMs.endMs !== null)
+      ) {
         let rawVal = null;
         if (dateField === "lastSeen") rawVal = flat.lastSeen;
         else if (dateField === "eventDate") rawVal = flat.eventDate;
-        else if (dateField === "nextFollowUp") rawVal = flat.nextFollowUp;
+        else if (dateField === "nextFollowUp")
+          rawVal = flat.nextFollowUp;
 
         const ms = toMsFromPossibleTimestamp(rawVal);
-        if (dateRangeMs.startMs !== null && (ms === null || ms < dateRangeMs.startMs)) return false;
-        if (dateRangeMs.endMs !== null && (ms === null || ms > dateRangeMs.endMs)) return false;
+        if (
+          dateRangeMs.startMs !== null &&
+          (ms === null || ms < dateRangeMs.startMs)
+        )
+          return false;
+        if (
+          dateRangeMs.endMs !== null &&
+          (ms === null || ms > dateRangeMs.endMs)
+        )
+          return false;
       }
 
       if (!s) return true;
       return p.haystack.includes(s);
     });
-  }, [prepared, q, tenantFilter, callStatusFilter, showOnlyWithCall, dateField, dateRangeMs]);
+  }, [
+    prepared,
+    q,
+    tenantFilter,
+    callStatusFilter,
+    showOnlyWithCall,
+    dateField,
+    dateRangeMs,
+    connectedTenantIds,
+  ]);
 
   // security
   if (!profile) return <div className="p-6">Loading profile…</div>;
-  if (profile.role !== "admin") return <div className="p-6">Access denied</div>;
+  if (profile.role !== "admin")
+    return <div className="p-6">Access denied</div>;
 
-  const toggle = (id) => setExpandedId((cur) => (cur === id ? null : id));
+  // ⛔ If admin has NO connected tenants, show message & nothing else
+  if (!hasConnectedTenants) {
+    return (
+      <div className="p-6">
+        <h2 className="leads-title">Leads — with latest call</h2>
+        <p style={{ marginTop: 8 }}>
+          No tenants connected to your admin profile. Connect one or more
+          tenants on the <strong>Tenants</strong> page to see leads here.
+        </p>
+      </div>
+    );
+  }
+
+  const toggle = (id) =>
+    setExpandedId((cur) => (cur === id ? null : id));
   const resetFilters = () => {
     setQ("");
     setTenantFilter("all");
@@ -314,7 +482,6 @@ export default function LeadsPage() {
   // --------------- CSV Export ---------------
   const exportCsv = () => {
     try {
-      // use the current filtered rows
       const csvText = leadsToCsvRows(filtered);
       const now = new Date();
       const fnTimestamp = now.toISOString().replace(/[:.]/g, "-");
@@ -332,10 +499,25 @@ export default function LeadsPage() {
         <div className="leads-header">
           <div>
             <div className="leads-title">Leads — with latest call</div>
-            <div className="leads-sub">You can export the visible rows to CSV (includes latest-call fields).</div>
+            <div className="leads-sub">
+              You can export the visible rows to CSV (includes
+              latest-call fields).
+            </div>
+            {error && (
+              <div className="leads-error">
+                Error loading leads: {String(error)}
+              </div>
+            )}
           </div>
 
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
             <div className="search-wrap" style={{ minWidth: 320 }}>
               <input
                 className="search-input"
@@ -345,12 +527,36 @@ export default function LeadsPage() {
               />
             </div>
 
-            <select className="filter-select" value={tenantFilter} onChange={(e) => setTenantFilter(e.target.value)}>
+            <select
+              className="filter-select"
+              value={tenantFilter}
+              onChange={(e) => setTenantFilter(e.target.value)}
+            >
               <option value="all">All tenants</option>
-              {tenants.map((t) => <option key={t.id} value={t.id}>{t.id}</option>)}
+              {tenants
+                .filter((t) => {
+                  if (
+                    !Array.isArray(connectedTenantIds) ||
+                    connectedTenantIds.length === 0
+                  ) {
+                    // should not happen because of hasConnectedTenants check,
+                    // but keep fallback
+                    return true;
+                  }
+                  return connectedTenantIds.includes(t.id);
+                })
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.id}
+                  </option>
+                ))}
             </select>
 
-            <select className="filter-select" value={callStatusFilter} onChange={(e) => setCallStatusFilter(e.target.value)}>
+            <select
+              className="filter-select"
+              value={callStatusFilter}
+              onChange={(e) => setCallStatusFilter(e.target.value)}
+            >
               <option value="all">All calls</option>
               <option value="missed">Missed</option>
               <option value="rejected">Rejected</option>
@@ -358,32 +564,76 @@ export default function LeadsPage() {
               <option value="none">No call</option>
             </select>
 
-            <select className="filter-select" value={showOnlyWithCall} onChange={(e) => setShowOnlyWithCall(e.target.value)}>
+            <select
+              className="filter-select"
+              value={showOnlyWithCall}
+              onChange={(e) => setShowOnlyWithCall(e.target.value)}
+            >
               <option value="any">Any</option>
               <option value="withCall">With call</option>
               <option value="withoutCall">Without call</option>
             </select>
 
-            <select className="filter-select" value={dateField} onChange={(e) => setDateField(e.target.value)}>
+            <select
+              className="filter-select"
+              value={dateField}
+              onChange={(e) => setDateField(e.target.value)}
+            >
               <option value="none">No date filter</option>
               <option value="lastSeen">Filter by Last seen</option>
               <option value="eventDate">Filter by Event date</option>
-              <option value="nextFollowUp">Filter by Next follow-up</option>
+              <option value="nextFollowUp">
+                Filter by Next follow-up
+              </option>
             </select>
 
             {dateField !== "none" && (
-              <div className="date-pickers" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input className="date-input" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <div
+                className="date-pickers"
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                }}
+              >
+                <input
+                  className="date-input"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) =>
+                    setStartDate(e.target.value)
+                  }
+                />
                 <span className="date-sep">—</span>
-                <input className="date-input" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                <input
+                  className="date-input"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) =>
+                    setEndDate(e.target.value)
+                  }
+                />
               </div>
             )}
 
-            <button className="reset-btn" onClick={resetFilters}>Reset</button>
+            <button
+              className="reset-btn"
+              onClick={resetFilters}
+            >
+              Reset
+            </button>
 
-            <button className="export-btn" onClick={exportCsv} title="Export visible leads to CSV">Export CSV</button>
+            <button
+              className="export-btn"
+              onClick={exportCsv}
+              title="Export visible leads to CSV"
+            >
+              Export CSV
+            </button>
 
-            <div className="meta-pill">{loading ? "Loading…" : `${filtered.length} leads`}</div>
+            <div className="meta-pill">
+              {loading ? "Loading…" : `${filtered.length} leads`}
+            </div>
           </div>
         </div>
 
@@ -394,8 +644,14 @@ export default function LeadsPage() {
                 <div className="lead-left">
                   <div className="lead-avatar shimmer" />
                   <div style={{ width: "220px" }}>
-                    <div className="shimmer-line" style={{ width: 160 }} />
-                    <div className="shimmer-line" style={{ width: 120 }} />
+                    <div
+                      className="shimmer-line"
+                      style={{ width: 160 }}
+                    />
+                    <div
+                      className="shimmer-line"
+                      style={{ width: 120 }}
+                    />
                   </div>
                 </div>
               </div>
@@ -414,27 +670,60 @@ export default function LeadsPage() {
               const leadId = flat.id || "—";
               const lastSeen = flat.lastSeen;
               const address = flat.address || "—";
-              const notesPreview = flat.notesText ? (flat.notesText.length > 160 ? `${flat.notesText.slice(0, 160)}…` : flat.notesText) : "—";
+              const notesPreview = flat.notesText
+                ? flat.notesText.length > 160
+                  ? `${flat.notesText.slice(0, 160)}…`
+                  : flat.notesText
+                : "—";
 
               const lcStatus = latest ? latest.status : "none";
-              const lcDirCompact = latest ? compactDirection(latest.direction) : "—";
+              const lcDirCompact = latest
+                ? compactDirection(latest.direction)
+                : "—";
               const lcDur = latest ? latest.durationInSeconds : 0;
               const lcCreated = latest ? latest.createdAt : null;
 
               return (
-                <article key={`${tenantId}-${leadId}`} className="lead-card" onClick={() => toggle(l.id)} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") toggle(l.id); }}>
+                <article
+                  key={`${tenantId}-${leadId}`}
+                  className="lead-card"
+                  onClick={() => toggle(l.id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") toggle(l.id);
+                  }}
+                >
                   <div className="lead-left">
-                    <div className="lead-avatar">{String(name || phone || "?").charAt(0).toUpperCase()}</div>
+                    <div className="lead-avatar">
+                      {String(name || phone || "?")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
 
                     <div className="lead-info-compact">
                       <div className="lead-row-top">
                         <div className="lead-name">{name}</div>
-                        <div className="lead-phone muted-small">{phone}</div>
+                        <div className="lead-phone muted-small">
+                          {phone}
+                        </div>
                       </div>
 
                       <div className="lead-row-sub">
-                        <div className="lead-lastseen">Last seen: <span className="muted-strong">{lastSeen ? fmtLocal(lastSeen) : "—"}</span></div>
-                        <div className="lead-id-small">ID: <span className="muted-strong mono">{leadId}</span></div>
+                        <div className="lead-lastseen">
+                          Last seen:{" "}
+                          <span className="muted-strong">
+                            {lastSeen
+                              ? fmtLocal(lastSeen)
+                              : "—"}
+                          </span>
+                        </div>
+                        <div className="lead-id-small">
+                          ID:{" "}
+                          <span className="muted-strong mono">
+                            {leadId}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -442,12 +731,24 @@ export default function LeadsPage() {
                   <div className="lead-mid-grid">
                     <div className="mid-item">
                       <div className="mid-label">Status</div>
-                      <div className="mid-value"><span className={`status-pill ${String(flat.status || "").toLowerCase()}`}>{(flat.status || "—").toString().toUpperCase()}</span></div>
+                      <div className="mid-value">
+                        <span
+                          className={`status-pill ${String(
+                            flat.status || ""
+                          ).toLowerCase()}`}
+                        >
+                          {(
+                            flat.status || "—"
+                          ).toString().toUpperCase()}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="mid-item">
                       <div className="mid-label">Tenant</div>
-                      <div className="mid-value muted-strong">{tenantId}</div>
+                      <div className="mid-value muted-strong">
+                        {tenantId}
+                      </div>
                     </div>
 
                     <div className="mid-item">
@@ -457,93 +758,220 @@ export default function LeadsPage() {
 
                     <div className="mid-item">
                       <div className="mid-label">Event Date</div>
-                      <div className="mid-value">{fmtDateOnly(flat.eventDate)}</div>
+                      <div className="mid-value">
+                        {fmtDateOnly(flat.eventDate)}
+                      </div>
                     </div>
 
                     <div className="mid-item">
-                      <div className="mid-label">Next follow-up</div>
-                      <div className="mid-value">{fmtDateOnly(flat.nextFollowUp)}</div>
+                      <div className="mid-label">
+                        Next follow-up
+                      </div>
+                      <div className="mid-value">
+                        {fmtDateOnly(flat.nextFollowUp)}
+                      </div>
                     </div>
 
                     <div className="mid-item">
                       <div className="mid-label">Requirements</div>
-                      <div className="mid-value">{flat.requirements || "—"}</div>
+                      <div className="mid-value">
+                        {flat.requirements || "—"}
+                      </div>
                     </div>
 
-                    <div className="mid-item notes-item" style={{ gridColumn: "1 / -1" }}>
+                    <div
+                      className="mid-item notes-item"
+                      style={{ gridColumn: "1 / -1" }}
+                    >
                       <div className="mid-label">Notes</div>
-                      <div className="mid-value notes-preview">{notesPreview}</div>
+                      <div className="mid-value notes-preview">
+                        {notesPreview}
+                      </div>
                     </div>
                   </div>
 
                   <div className="lead-right">
                     <div>
-                      <div className="mid-label" style={{ fontSize: 12, color: "var(--muted)" }}>Last call</div>
+                      <div
+                        className="mid-label"
+                        style={{
+                          fontSize: 12,
+                          color: "var(--muted)",
+                        }}
+                      >
+                        Last call
+                      </div>
 
                       {latest ? (
-                        <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end" }}>
-                          <span className={`dir-pill ${lcDirCompact === "IN" ? "in" : lcDirCompact === "OUT" ? "out" : ""}`} style={{ padding: "6px 10px" }}>
-                            {lcDirCompact === "IN" ? <ArrowInIcon/> : lcDirCompact === "OUT" ? <ArrowOutIcon/> : null}
-                            <span style={{ marginLeft: 8, fontWeight: 800 }}>{lcDirCompact}</span>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 8,
+                            alignItems: "center",
+                            justifyContent: "flex-end",
+                          }}
+                        >
+                          <span
+                            className={`dir-pill ${
+                              lcDirCompact === "IN"
+                                ? "in"
+                                : lcDirCompact === "OUT"
+                                ? "out"
+                                : ""
+                            }`}
+                            style={{
+                              padding: "6px 10px",
+                            }}
+                          >
+                            {lcDirCompact === "IN" ? (
+                              <ArrowInIcon />
+                            ) : lcDirCompact === "OUT" ? (
+                              <ArrowOutIcon />
+                            ) : null}
+                            <span
+                              style={{
+                                marginLeft: 8,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {lcDirCompact}
+                            </span>
                           </span>
 
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ fontWeight: 700 }}>{fmtDuration(lcDur)}</div>
-                            <div style={{ fontSize: 12, color: "var(--muted)" }}>{lcCreated ? fmtLocal(lcCreated) : "—"}</div>
+                            <div style={{ fontWeight: 700 }}>
+                              {fmtDuration(lcDur)}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: "var(--muted)",
+                              }}
+                            >
+                              {lcCreated
+                                ? fmtLocal(lcCreated)
+                                : "—"}
+                            </div>
                             <div style={{ marginTop: 6 }}>
-                              <span className={`call-status-pill ${lcStatus}`}>{lcStatus === "missed" ? "Missed" : lcStatus === "rejected" ? "Rejected" : lcStatus === "answered" ? "Answered" : "No call"}</span>
+                              <span
+                                className={`call-status-pill ${lcStatus}`}
+                              >
+                                {lcStatus === "missed"
+                                  ? "Missed"
+                                  : lcStatus === "rejected"
+                                  ? "Rejected"
+                                  : lcStatus === "answered"
+                                  ? "Answered"
+                                  : "No call"}
+                              </span>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div style={{ color: "var(--muted)" }}>No calls</div>
+                        <div style={{ color: "var(--muted)" }}>
+                          No calls
+                        </div>
                       )}
                     </div>
 
-                    <div>Tenant: <span className="muted-strong">{tenantId}</span></div>
-                    <div>ID: <span className="muted-strong mono">{leadId}</span></div>
+                    <div>
+                      Tenant:{" "}
+                      <span className="muted-strong">{tenantId}</span>
+                    </div>
+                    <div>
+                      ID:{" "}
+                      <span className="muted-strong mono">
+                        {leadId}
+                      </span>
+                    </div>
                   </div>
 
                   {expandedId === l.id ? (
                     <div className="lead-expanded">
                       <div className="expanded-grid">
                         <div>
-                          <div className="expanded-label">Name</div>
-                          <div className="expanded-value">{name}</div>
+                          <div className="expanded-label">
+                            Name
+                          </div>
+                          <div className="expanded-value">
+                            {name}
+                          </div>
                         </div>
                         <div>
-                          <div className="expanded-label">Phone</div>
-                          <div className="expanded-value">{phone}</div>
-                        </div>
-
-                        <div>
-                          <div className="expanded-label">Last seen (full)</div>
-                          <div className="expanded-value">{flat.lastSeen ? fmtLocal(flat.lastSeen) : "—"}</div>
-                        </div>
-
-                        <div>
-                          <div className="expanded-label">Event date</div>
-                          <div className="expanded-value">{flat.eventDate ? fmtLocal(flat.eventDate) : "—"}</div>
+                          <div className="expanded-label">
+                            Phone
+                          </div>
+                          <div className="expanded-value">
+                            {phone}
+                          </div>
                         </div>
 
                         <div>
-                          <div className="expanded-label">Next follow-up</div>
-                          <div className="expanded-value">{flat.nextFollowUp ? fmtLocal(flat.nextFollowUp) : "—"}</div>
+                          <div className="expanded-label">
+                            Last seen (full)
+                          </div>
+                          <div className="expanded-value">
+                            {flat.lastSeen
+                              ? fmtLocal(flat.lastSeen)
+                              : "—"}
+                          </div>
                         </div>
 
                         <div>
-                          <div className="expanded-label">Requirements</div>
-                          <div className="expanded-value">{flat.requirements || "—"}</div>
+                          <div className="expanded-label">
+                            Event date
+                          </div>
+                          <div className="expanded-value">
+                            {flat.eventDate
+                              ? fmtLocal(flat.eventDate)
+                              : "—"}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="expanded-label">
+                            Next follow-up
+                          </div>
+                          <div className="expanded-value">
+                            {flat.nextFollowUp
+                              ? fmtLocal(flat.nextFollowUp)
+                              : "—"}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="expanded-label">
+                            Requirements
+                          </div>
+                          <div className="expanded-value">
+                            {flat.requirements || "—"}
+                          </div>
                         </div>
 
                         <div style={{ gridColumn: "1 / -1" }}>
-                          <div className="expanded-label">Notes (full)</div>
-                          <div className="expanded-value">{flat.notesText || "—"}</div>
+                          <div className="expanded-label">
+                            Notes (full)
+                          </div>
+                          <div className="expanded-value">
+                            {flat.notesText || "—"}
+                          </div>
                         </div>
 
                         <div style={{ gridColumn: "1 / -1" }}>
-                          <div className="expanded-label">Latest Call (raw)</div>
-                          <div className="expanded-value">{latest ? (`${latest.id} — ${latest.direction || "—"} — ${latest.durationInSeconds}s — ${fmtLocal(latest.createdAt)}`) : "—"}</div>
+                          <div className="expanded-label">
+                            Latest Call (raw)
+                          </div>
+                          <div className="expanded-value">
+                            {latest
+                              ? `${latest.id} — ${
+                                  latest.direction || "—"
+                                } — ${
+                                  latest.durationInSeconds
+                                }s — ${fmtLocal(
+                                  latest.createdAt
+                                )}`
+                              : "—"}
+                          </div>
                         </div>
                       </div>
                     </div>

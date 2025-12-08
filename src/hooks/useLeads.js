@@ -4,11 +4,25 @@ import { db } from "../firebase";
 import { collectionGroup, onSnapshot, query } from "firebase/firestore";
 
 /**
- * useLeads - subscribes to collectionGroup("leads") and collectionGroup("calls")
+ * useLeads({ allowedTenantIds })
+ *   - subscribes to collectionGroup("leads") and collectionGroup("calls")
+ *   - optionally restricts results to one or more tenantIds
+ *
  * Returns: { leads, loading, error }
  *
  * Each lead object includes .latestCall if any:
- * latestCall: { id, createdAt, createdMs, direction, durationInSeconds, phoneNumber, _raw, _path }
+ * latestCall: {
+ *   id,
+ *   createdAt,
+ *   createdMs,
+ *   direction,
+ *   durationInSeconds,
+ *   phoneNumber,
+ *   tenantId,
+ *   leadId,
+ *   _raw,
+ *   _path
+ * }
  *
  * Implementation notes:
  * - We keep a latestCallsMap keyed by **tenantId + "__" + leadId**.
@@ -30,10 +44,27 @@ function toMsFromPossibleTimestamp(v) {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-export default function useLeads() {
+export default function useLeads({ allowedTenantIds = null } = {}) {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // we want different behavior for:
+  // - allowedTenantIds === null  -> no restriction (all tenants)
+  // - allowedTenantIds === []    -> explicit "none" (no tenants)
+  const hasRestrictionList = Array.isArray(allowedTenantIds);
+
+  const isTenantAllowed = (tenantId) => {
+    // no restriction if allowedTenantIds is null/undefined
+    if (!hasRestrictionList) return true;
+
+    // explicit "no tenants" if empty array
+    if (allowedTenantIds.length === 0) return false;
+
+    // when restricted, require tenantId to match the list
+    if (!tenantId) return false;
+    return allowedTenantIds.includes(tenantId);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -69,8 +100,13 @@ export default function useLeads() {
               }
             }
 
+            // If tenant restriction is active and this tenant isn't allowed → skip
+            if (!isTenantAllowed(tenantIdFromPath)) {
+              continue;
+            }
+
             // Prefer explicit leadId field but still keep tenantId in key
-            let leadId = data.leadId || leadIdFromPath || null;
+            const leadId = data.leadId || leadIdFromPath || null;
             const tenantId = tenantIdFromPath || data.tenantId || null;
 
             if (!leadId) {
@@ -96,7 +132,6 @@ export default function useLeads() {
               phoneNumber: data.phoneNumber ?? data.from ?? null,
               tenantId,
               leadId,
-              // keep raw data reference if needed
               _raw: data,
               _path: doc.ref.path,
             };
@@ -123,7 +158,9 @@ export default function useLeads() {
       leadsQ,
       (snap) => {
         try {
-          const arr = snap.docs.map((d) => {
+          const arr = [];
+
+          for (const d of snap.docs) {
             const docData = d.data() || {};
 
             // extract tenantId from path
@@ -136,21 +173,26 @@ export default function useLeads() {
               }
             }
 
+            // If tenant restriction is active and this tenant isn't allowed → skip
+            if (!isTenantAllowed(tenantId)) {
+              continue;
+            }
+
             // 👇 key must match what we used in the calls snapshot
             const leadId = d.id;
             const leadKey = tenantId ? `${tenantId}__${leadId}` : leadId;
 
             const latestCall = latestCallsMap.get(leadKey) ?? null;
 
-            return {
+            arr.push({
               id: leadId,
               tenantId,
               data: docData,
               ...docData,
               latestCall,
               _path: d.ref.path,
-            };
-          });
+            });
+          }
 
           // sort by lastSeen-ish fields (same as before)
           function pickLastSeenMs(leadObj) {
@@ -159,7 +201,8 @@ export default function useLeads() {
               leadObj.last_seen ??
               leadObj.lastSeenAt ??
               null;
-            const li = leadObj.lastInteraction ?? leadObj.last_interaction ?? null;
+            const li =
+              leadObj.lastInteraction ?? leadObj.last_interaction ?? null;
             const lu = leadObj.lastUpdated ?? leadObj.last_updated ?? null;
             const ca = leadObj.createdAt ?? leadObj.created_at ?? null;
             const candidates = [dVal, li, lu, ca]
@@ -189,7 +232,7 @@ export default function useLeads() {
       unsubCalls();
       unsubLeads();
     };
-  }, []);
+  }, [hasRestrictionList, allowedTenantIds]); // re-subscribe if restriction list changes
 
   return { leads, loading, error };
 }

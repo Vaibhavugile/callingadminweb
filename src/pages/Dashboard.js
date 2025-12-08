@@ -2,15 +2,10 @@
 import React, { useEffect, useState, useMemo } from "react";
 import useUserProfile from "../hooks/useUserProfile";
 import { db } from "../firebase";
-import {
-  collection,
-  doc,
-  onSnapshot,
-  query,
-} from "firebase/firestore";
+import { collection, doc, onSnapshot, query } from "firebase/firestore";
 import "./Dashboard.css";
 
-// Recharts for lightweight, premium charts. Install with `npm install recharts` if you haven't.
+// Recharts for lightweight, premium charts.
 import {
   ResponsiveContainer,
   PieChart,
@@ -47,10 +42,9 @@ export default function Dashboard() {
   // -----------------------
   // Helpers
   // -----------------------
-  const toNum = (v) => (Number(v) || 0);
+  const toNum = (v) => Number(v) || 0;
   const safe = (n) => Math.max(0, Number(n) || 0);
 
-  // optional: format seconds to H:MM:SS or just show seconds
   const fmtDuration = (s) => {
     const sec = Math.max(0, Number(s) || 0);
     if (sec < 60) return `${sec}s`;
@@ -61,12 +55,31 @@ export default function Dashboard() {
   };
 
   // -----------------------
+  // Connected tenants from profile
+  // -----------------------
+  const connectedTenantIds = useMemo(() => {
+    if (!profile || !Array.isArray(profile.connectedTenants)) return [];
+    const ids = profile.connectedTenants
+      .map((t) => {
+        if (typeof t === "string") return t;
+        if (t && typeof t === "object") {
+          return t.id || t.tenantId || t.tenant || null;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    return ids;
+  }, [profile]);
+
+  const hasAnyConnected = connectedTenantIds.length > 0;
+
+  // -----------------------
   // Real-time list of tenants
   // -----------------------
   useEffect(() => {
-    const q = query(collection(db, "tenants"));
+    const qTenants = query(collection(db, "tenants"));
     const unsub = onSnapshot(
-      q,
+      qTenants,
       (snap) => {
         const arr = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setTenants(arr);
@@ -79,30 +92,49 @@ export default function Dashboard() {
   }, []);
 
   // -----------------------
-  // Load stats when tenant changes OR when tenants list changes (recompute aggregate)
+  // Load stats when tenant changes OR tenants list changes
   // -----------------------
   useEffect(() => {
     if (!profile || profile.role !== "admin") return;
 
+    // ❌ If no connected tenants → don't show any stats
+    if (!hasAnyConnected) {
+      setStats({
+        leadsCount: 0,
+        callsCount: 0,
+        inboundCount: 0,
+        outboundCount: 0,
+        missedCount: 0,
+        rejectedCount: 0,
+        totalDurationSeconds: 0,
+      });
+      setFastPath(null);
+      return;
+    }
+
     let unsub;
     if (selectedTenant === "all") {
-      computeAggregate();
+      // Aggregate ONLY across connected tenants
+      computeAggregate(connectedTenantIds);
     } else {
-      unsub = subscribeSingleTenant(selectedTenant);
+      // Ensure selected tenant is in connected list
+      if (!connectedTenantIds.includes(selectedTenant)) {
+        setSelectedTenant("all");
+      } else {
+        unsub = subscribeSingleTenant(selectedTenant);
+      }
     }
 
     return () => {
       if (typeof unsub === "function") unsub();
     };
-    // include tenants so aggregate recomputes when tenants array updates (e.g. after backfill)
-  }, [selectedTenant, profile, tenants]);
+  }, [selectedTenant, profile, tenants, connectedTenantIds, hasAnyConnected]);
 
   // -----------------------
   // SINGLE TENANT FAST MODE
   // -----------------------
   function subscribeSingleTenant(tenantId) {
     if (!tenantId) {
-      // reset to empty stats if no tenant selected
       setStats({
         leadsCount: 0,
         callsCount: 0,
@@ -139,7 +171,6 @@ export default function Dashboard() {
           return;
         }
 
-        // If any counter exists, treat it as fast path.
         const hasCounters =
           typeof data.leadsCount !== "undefined" ||
           typeof data.callsCount !== "undefined" ||
@@ -174,9 +205,9 @@ export default function Dashboard() {
   }
 
   // -----------------------
-  // ALL TENANTS AGGREGATE
+  // ALL TENANTS AGGREGATE (ONLY connectedTenantIds)
   // -----------------------
-  function computeAggregate() {
+  function computeAggregate(allowedTenantIds = []) {
     setLoading(true);
 
     let total = {
@@ -190,6 +221,14 @@ export default function Dashboard() {
     };
 
     for (const t of tenants) {
+      // STRICT: if allowedTenantIds is empty array => no tenants at all
+      if (
+        Array.isArray(allowedTenantIds) &&
+        (!allowedTenantIds.length || !allowedTenantIds.includes(t.id))
+      ) {
+        continue;
+      }
+
       total.leadsCount += toNum(t.leadsCount);
       total.callsCount += toNum(t.callsCount);
       total.inboundCount += toNum(t.inboundCount);
@@ -200,9 +239,15 @@ export default function Dashboard() {
     }
 
     const anyHasCounters = tenants.some((t) =>
-      ["leadsCount", "callsCount", "inboundCount", "outboundCount", "missedCount", "rejectedCount", "totalDurationSeconds"].some(
-        (k) => typeof t[k] !== "undefined"
-      )
+      [
+        "leadsCount",
+        "callsCount",
+        "inboundCount",
+        "outboundCount",
+        "missedCount",
+        "rejectedCount",
+        "totalDurationSeconds",
+      ].some((k) => typeof t[k] !== "undefined")
     );
 
     setFastPath(anyHasCounters);
@@ -210,7 +255,9 @@ export default function Dashboard() {
     setLoading(false);
   }
 
-  // optional: show lastRecalcAt (most recent across tenants) to indicate freshness
+  // -----------------------
+  // lastRecalcAt indicator
+  // -----------------------
   const lastRecalcAt = useMemo(() => {
     if (!tenants || tenants.length === 0) return null;
     let latest = null;
@@ -219,7 +266,6 @@ export default function Dashboard() {
         const ts = new Date(t.lastRecalcAt.seconds * 1000);
         if (!latest || ts > latest) latest = ts;
       } else if (t.lastRecalcAt && t.lastRecalcAt.toDate) {
-        // sometimes Firestore client returns Timestamp-like object client-side
         const ts = t.lastRecalcAt.toDate();
         if (!latest || ts > latest) latest = ts;
       }
@@ -228,16 +274,27 @@ export default function Dashboard() {
   }, [tenants]);
 
   // -----------------------
-  // Chart data (single pie for calls, bar for tenant comparison)
+  // Chart data
   // -----------------------
-  const CHART_COLORS = ["#6C5CE7", "#00B894", "#FF7675", "#FFD166", "#74B9FF", "#A29BFE"];
+  const CHART_COLORS = [
+    "#6C5CE7",
+    "#00B894",
+    "#FF7675",
+    "#FFD166",
+    "#74B9FF",
+    "#A29BFE",
+  ];
 
-  // Pie slices: Inbound Answered, Inbound Missed, Outbound Answered, Outbound Rejected
   const inboundAnswered = safe(stats.inboundCount - stats.missedCount);
   const outboundAnswered = safe(stats.outboundCount - stats.rejectedCount);
+
   const pieData = useMemo(() => {
-    const total = inboundAnswered + safe(stats.missedCount) + outboundAnswered + safe(stats.rejectedCount);
-    if (total === 0) return [{ name: "No activity", value: 1 }];
+    const totalPie =
+      inboundAnswered +
+      safe(stats.missedCount) +
+      outboundAnswered +
+      safe(stats.rejectedCount);
+    if (totalPie === 0) return [{ name: "No activity", value: 1 }];
     return [
       { name: "Inbound Answered", value: inboundAnswered },
       { name: "Inbound Missed", value: safe(stats.missedCount) },
@@ -246,23 +303,46 @@ export default function Dashboard() {
     ];
   }, [stats, inboundAnswered, outboundAnswered]);
 
-  // Tenant comparison: top 8 by calls
   const tenantComparison = useMemo(() => {
-    const arr = tenants.map((t) => ({ id: t.id, calls: toNum(t.callsCount) }));
+    if (!hasAnyConnected) return [];
+    const arr = tenants
+      .filter((t) => connectedTenantIds.includes(t.id))
+      .map((t) => ({ id: t.id, calls: toNum(t.callsCount) }));
     arr.sort((a, b) => b.calls - a.calls);
     return arr.slice(0, 8);
-  }, [tenants]);
+  }, [tenants, connectedTenantIds, hasAnyConnected]);
 
   const barData = useMemo(() => {
-    if (tenantComparison.length === 0) return [{ name: "No tenants", calls: 1 }];
-    return tenantComparison.map((t) => ({ name: t.id, calls: t.calls }));
+    if (tenantComparison.length === 0)
+      return [{ name: "No tenants", calls: 1 }];
+    return tenantComparison.map((t) => ({
+      name: t.id,
+      calls: t.calls,
+    }));
   }, [tenantComparison]);
 
-  // Helper
   const fmt = (v) => (loading ? "…" : v);
 
+  // -----------------------
+  // SECURITY + "no connected" behaviour
+  // -----------------------
   if (!profile) return <div className="p-6">Loading profile…</div>;
-  if (profile.role !== "admin") return <div className="p-6">Access denied</div>;
+  if (profile.role !== "admin")
+    return <div className="p-6">Access denied</div>;
+
+  // 👉 If NO connected tenants: show nothing (no stats), just a small info
+  if (!hasAnyConnected) {
+    return (
+      <div className="p-6">
+        <h2 style={{ marginBottom: 8 }}>No tenants connected</h2>
+        <p style={{ fontSize: 14, color: "var(--muted)" }}>
+          This admin user is not connected to any tenant yet. Use the
+          <strong> Tenants</strong> page to connect one or ask the super admin
+          to connect tenants to your profile.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-root">
@@ -280,23 +360,43 @@ export default function Dashboard() {
               <span
                 className={
                   "path-indicator " +
-                  (fastPath === null ? "path-unknown" : fastPath ? "path-fast" : "path-fallback")
+                  (fastPath === null
+                    ? "path-unknown"
+                    : fastPath
+                    ? "path-fast"
+                    : "path-fallback")
                 }
               />
-              {fastPath === null ? "Detecting…" : fastPath ? "Fast Path" : "Fallback"}
+              {fastPath === null
+                ? "Detecting…"
+                : fastPath
+                ? "Fast Path"
+                : "Fallback"}
             </span>
           </div>
 
           {/* Tenant selector */}
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <label style={{ color: "var(--muted)", fontSize: 13 }}>Tenant</label>
-            <select className="select-tenant" value={selectedTenant} onChange={(e) => setSelectedTenant(e.target.value)}>
-              <option value="all">All tenants</option>
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.id}
-                </option>
-              ))}
+          <div
+            style={{ display: "flex", gap: 12, alignItems: "center" }}
+          >
+            <label
+              style={{ color: "var(--muted)", fontSize: 13 }}
+            >
+              Tenant
+            </label>
+            <select
+              className="select-tenant"
+              value={selectedTenant}
+              onChange={(e) => setSelectedTenant(e.target.value)}
+            >
+              <option value="all">All connected tenants</option>
+              {tenants
+                .filter((t) => connectedTenantIds.includes(t.id))
+                .map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.id}
+                  </option>
+                ))}
             </select>
           </div>
         </div>
@@ -335,17 +435,40 @@ export default function Dashboard() {
 
           <div className="kpi-card">
             <div className="kpi-title">Total Duration</div>
-            <div className="kpi-value">{loading ? "…" : fmtDuration(stats.totalDurationSeconds)}</div>
+            <div className="kpi-value">
+              {loading ? "…" : fmtDuration(stats.totalDurationSeconds)}
+            </div>
           </div>
         </div>
 
-        {/* Charts row: Pie (calls breakdown) + Bar (tenant comparison) */}
-        <div className="charts-row" style={{ display: "flex", gap: 16, marginTop: 18 }}>
-          <div style={{ flex: 1, minWidth: 300 }} className="card">
+        {/* Charts row */}
+        <div
+          className="charts-row"
+          style={{ display: "flex", gap: 16, marginTop: 18 }}
+        >
+          <div
+            style={{ flex: 1, minWidth: 300 }}
+            className="card"
+          >
             <div style={{ padding: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Calls breakdown</div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>Inbound/Outbound answered vs missed/rejected</div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  Calls breakdown
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--muted)",
+                  }}
+                >
+                  Inbound/Outbound answered vs missed/rejected
+                </div>
               </div>
 
               <div style={{ height: 260, marginTop: 10 }}>
@@ -364,7 +487,14 @@ export default function Dashboard() {
                       animationDuration={800}
                     >
                       {pieData.map((entry, idx) => (
-                        <Cell key={`cell-${idx}`} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                        <Cell
+                          key={`cell-${idx}`}
+                          fill={
+                            CHART_COLORS[
+                              idx % CHART_COLORS.length
+                            ]
+                          }
+                        />
                       ))}
                     </Pie>
                     <ReTooltip formatter={(v) => (Number(v) ? v : v)} />
@@ -375,23 +505,61 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div style={{ flex: 1.2, minWidth: 380 }} className="card">
+          <div
+            style={{ flex: 1.2, minWidth: 380 }}
+            className="card"
+          >
             <div style={{ padding: 12 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 600 }}>Top tenants (by calls)</div>
-                <div style={{ fontSize: 12, color: "var(--muted)" }}>Compare tenant call volume</div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  Top tenants (by calls)
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color: "var(--muted)",
+                  }}
+                >
+                  Compare tenant call volume
+                </div>
               </div>
 
               <div style={{ height: 260, marginTop: 10 }}>
                 <ResponsiveContainer>
-                  <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
+                  <BarChart
+                    data={barData}
+                    margin={{
+                      top: 10,
+                      right: 10,
+                      left: -20,
+                      bottom: 20,
+                    }}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" tickLine={false} />
                     <YAxis />
                     <ReTooltip />
-                    <Bar dataKey="calls" radius={[6, 6, 6, 6]} isAnimationActive={true} animationDuration={900}>
+                    <Bar
+                      dataKey="calls"
+                      radius={[6, 6, 6, 6]}
+                      isAnimationActive={true}
+                      animationDuration={900}
+                    >
                       {barData.map((entry, idx) => (
-                        <Cell key={`bar-${idx}`} fill={CHART_COLORS[idx % CHART_COLORS.length]} />
+                        <Cell
+                          key={`bar-${idx}`}
+                          fill={
+                            CHART_COLORS[
+                              idx % CHART_COLORS.length
+                            ]
+                          }
+                        />
                       ))}
                     </Bar>
                   </BarChart>
@@ -401,9 +569,21 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div style={{ marginTop: 12, color: "var(--muted)", fontSize: 12 }}>
+        <div
+          style={{
+            marginTop: 12,
+            color: "var(--muted)",
+            fontSize: 12,
+          }}
+        >
           Stats computed using server-side counters.
-          {lastRecalcAt ? <span> Last full recompute: {lastRecalcAt.toLocaleString()}</span> : null}
+          {lastRecalcAt ? (
+            <span>
+              {" "}
+              Last full recompute:{" "}
+              {lastRecalcAt.toLocaleString()}
+            </span>
+          ) : null}
         </div>
       </div>
     </div>
