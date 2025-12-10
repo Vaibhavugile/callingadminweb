@@ -1,6 +1,7 @@
 // src/pages/Dashboard.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import useUserProfile from "../hooks/useUserProfile";
+import useLeads from "../hooks/useLeads";
 import { db } from "../firebase";
 import { collection, doc, onSnapshot, query } from "firebase/firestore";
 import "./Dashboard.css";
@@ -55,9 +56,15 @@ export default function Dashboard() {
   };
 
   // -----------------------
-  // Connected tenants from profile
+  // Connected tenants from profile (single-tenant + legacy multi)
   // -----------------------
   const connectedTenantIds = useMemo(() => {
+    // ✅ New world: single tenantId on profile
+    if (profile?.tenantId) {
+      return [profile.tenantId];
+    }
+
+    // 🔁 Legacy: connectedTenants array
     if (!profile || !Array.isArray(profile.connectedTenants)) return [];
     const ids = profile.connectedTenants
       .map((t) => {
@@ -274,6 +281,13 @@ export default function Dashboard() {
   }, [tenants]);
 
   // -----------------------
+  // Load leads for per-user stats (single tenant / connected tenants)
+  // -----------------------
+  const { leads: dashboardLeads } = useLeads({
+    allowedTenantIds: hasAnyConnected ? connectedTenantIds : [],
+  });
+
+  // -----------------------
   // Chart data
   // -----------------------
   const CHART_COLORS = [
@@ -303,23 +317,44 @@ export default function Dashboard() {
     ];
   }, [stats, inboundAnswered, outboundAnswered]);
 
-  const tenantComparison = useMemo(() => {
+  // ------- Tenant bar data (multi-tenant) -------
+  const tenantBarData = useMemo(() => {
     if (!hasAnyConnected) return [];
     const arr = tenants
       .filter((t) => connectedTenantIds.includes(t.id))
-      .map((t) => ({ id: t.id, calls: toNum(t.callsCount) }));
-    arr.sort((a, b) => b.calls - a.calls);
+      .map((t) => ({ name: t.id, value: toNum(t.callsCount) }));
+    arr.sort((a, b) => b.value - a.value);
     return arr.slice(0, 8);
   }, [tenants, connectedTenantIds, hasAnyConnected]);
 
-  const barData = useMemo(() => {
-    if (tenantComparison.length === 0)
-      return [{ name: "No tenants", calls: 1 }];
-    return tenantComparison.map((t) => ({
-      name: t.id,
-      calls: t.calls,
+  // ------- User bar data (single-tenant / multi-user) -------
+  const userBarData = useMemo(() => {
+    if (!hasAnyConnected || !dashboardLeads || dashboardLeads.length === 0) {
+      return [];
+    }
+    const map = new Map();
+
+    dashboardLeads.forEach((l) => {
+      const name =
+        (l.lastHandledByUserName ??
+          l.data?.lastHandledByUserName ??
+          "Unassigned") || "Unassigned";
+      const trimmed = name.trim() || "Unassigned";
+      const prev = map.get(trimmed) || 0;
+      map.set(trimmed, prev + 1);
+    });
+
+    const arr = Array.from(map.entries()).map(([name, value]) => ({
+      name,
+      value,
     }));
-  }, [tenantComparison]);
+    arr.sort((a, b) => b.value - a.value);
+    return arr.slice(0, 8);
+  }, [dashboardLeads, hasAnyConnected]);
+
+  // decide whether to show tenant chart or user chart
+  const showTenantChart = connectedTenantIds.length > 1;
+  const barData = showTenantChart ? tenantBarData : userBarData;
 
   const fmt = (v) => (loading ? "…" : v);
 
@@ -336,9 +371,9 @@ export default function Dashboard() {
       <div className="p-6">
         <h2 style={{ marginBottom: 8 }}>No tenants connected</h2>
         <p style={{ fontSize: 14, color: "var(--muted)" }}>
-          This admin user is not connected to any tenant yet. Use the
-          <strong> Tenants</strong> page to connect one or ask the super admin
-          to connect tenants to your profile.
+          This admin user is not connected to any tenant yet. Ask the super
+          admin to set <code>tenantId</code> on your profile or connect tenants
+          to your account.
         </p>
       </div>
     );
@@ -446,6 +481,7 @@ export default function Dashboard() {
           className="charts-row"
           style={{ display: "flex", gap: 16, marginTop: 18 }}
         >
+          {/* PIE: calls breakdown */}
           <div
             style={{ flex: 1, minWidth: 300 }}
             className="card"
@@ -490,9 +526,7 @@ export default function Dashboard() {
                         <Cell
                           key={`cell-${idx}`}
                           fill={
-                            CHART_COLORS[
-                              idx % CHART_COLORS.length
-                            ]
+                            CHART_COLORS[idx % CHART_COLORS.length]
                           }
                         />
                       ))}
@@ -505,6 +539,7 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* BAR: tenants OR users */}
           <div
             style={{ flex: 1.2, minWidth: 380 }}
             className="card"
@@ -518,7 +553,9 @@ export default function Dashboard() {
                 }}
               >
                 <div style={{ fontSize: 14, fontWeight: 600 }}>
-                  Top tenants (by calls)
+                  {showTenantChart
+                    ? "Top tenants (by calls)"
+                    : "Top users (by handled leads)"}
                 </div>
                 <div
                   style={{
@@ -526,14 +563,20 @@ export default function Dashboard() {
                     color: "var(--muted)",
                   }}
                 >
-                  Compare tenant call volume
+                  {showTenantChart
+                    ? "Compare tenant call volume"
+                    : "Compare user workloads in this tenant"}
                 </div>
               </div>
 
               <div style={{ height: 260, marginTop: 10 }}>
                 <ResponsiveContainer>
                   <BarChart
-                    data={barData}
+                    data={
+                      barData.length
+                        ? barData
+                        : [{ name: "No data", value: 1 }]
+                    }
                     margin={{
                       top: 10,
                       right: 10,
@@ -546,21 +589,21 @@ export default function Dashboard() {
                     <YAxis />
                     <ReTooltip />
                     <Bar
-                      dataKey="calls"
+                      dataKey="value"
                       radius={[6, 6, 6, 6]}
                       isAnimationActive={true}
                       animationDuration={900}
                     >
-                      {barData.map((entry, idx) => (
-                        <Cell
-                          key={`bar-${idx}`}
-                          fill={
-                            CHART_COLORS[
-                              idx % CHART_COLORS.length
-                            ]
-                          }
-                        />
-                      ))}
+                      {(barData.length ? barData : [{ name: "No data", value: 1 }]).map(
+                        (entry, idx) => (
+                          <Cell
+                            key={`bar-${idx}`}
+                            fill={
+                              CHART_COLORS[idx % CHART_COLORS.length]
+                            }
+                          />
+                        )
+                      )}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
@@ -576,11 +619,12 @@ export default function Dashboard() {
             fontSize: 12,
           }}
         >
-          Stats computed using server-side counters.
+          Stats computed using server-side counters for tenants, and per-user
+          cards derived from lead assignments.
           {lastRecalcAt ? (
             <span>
               {" "}
-              Last full recompute:{" "}
+              Last full tenant counters recompute:{" "}
               {lastRecalcAt.toLocaleString()}
             </span>
           ) : null}

@@ -109,6 +109,8 @@ function leadsToCsvRows(preparedArray) {
     "nextFollowUp_local",
     "requirements",
     "notes_preview",
+    "lastHandledByUserId",
+    "lastHandledByUserName",
     // latest call fields
     "latestCallId",
     "latestCallCreatedAt_ISO",
@@ -143,6 +145,8 @@ function leadsToCsvRows(preparedArray) {
           ? flat.notesText.slice(0, 200) + "…"
           : flat.notesText
         : "",
+      flat.lastHandledByUserId || "",
+      flat.lastHandledByUserName || "",
       latest ? latest.id || "" : "",
       latest ? fmtIso(latest.createdAt) || "" : "",
       latest ? fmtLocal(latest.createdAt) || "" : "",
@@ -234,9 +238,18 @@ export default function LeadsPage() {
   // top-level hooks
   const { profile } = useUserProfile();
 
-  // derive connected tenant IDs from profile (can be ["t1","t2"] or array of objects)
+  // ---------------------------
+  // Single-tenant + legacy multi-tenant
+  // ---------------------------
   const connectedTenantIds = useMemo(() => {
-    if (!profile || !Array.isArray(profile.connectedTenants)) return null;
+    // ✅ New mode: single tenant on profile
+    if (profile?.tenantId) {
+      return [profile.tenantId];
+    }
+
+    // 🔁 Legacy fallback: connectedTenants array
+    if (!profile || !Array.isArray(profile.connectedTenants)) return [];
+
     const ids = profile.connectedTenants
       .map((t) => {
         if (typeof t === "string") return t;
@@ -246,19 +259,18 @@ export default function LeadsPage() {
         return null;
       })
       .filter(Boolean);
-    return ids.length ? ids : null;
+    return ids;
   }, [profile]);
 
   const hasConnectedTenants =
     Array.isArray(connectedTenantIds) && connectedTenantIds.length > 0;
 
-  // useLeads restricted to connected tenants.
-  // If there are NO connected tenants, pass [] so hook returns nothing.
+  // useLeads restricted to allowed tenant(s).
   const { leads, loading, error } = useLeads({
     allowedTenantIds: hasConnectedTenants ? connectedTenantIds : [],
   });
 
-  // tenants for dropdown
+  // tenants for dropdown (for label; still filtered by connectedTenantIds)
   const [tenants, setTenants] = useState([]);
   useEffect(() => {
     const colRef = collection(db, "tenants");
@@ -279,6 +291,7 @@ export default function LeadsPage() {
   const [q, setQ] = useState("");
   const [tenantFilter, setTenantFilter] = useState("all");
   const [callStatusFilter, setCallStatusFilter] = useState("all");
+  const [handlerFilter, setHandlerFilter] = useState("all"); // 🔹 NEW: filter by user
   const [expandedId, setExpandedId] = useState(null);
   const [showOnlyWithCall, setShowOnlyWithCall] = useState("any");
   const [dateField, setDateField] = useState("none");
@@ -312,6 +325,12 @@ export default function LeadsPage() {
         lastInteraction:
           l.lastInteraction ?? l.data?.lastInteraction ?? null,
         latestCall: l.latestCall ?? null,
+        lastHandledByUserId:
+          l.lastHandledByUserId ?? l.data?.lastHandledByUserId ?? "",
+        lastHandledByUserName:
+          l.lastHandledByUserName ??
+          l.data?.lastHandledByUserName ??
+          "",
       };
 
       const haystack = [
@@ -323,6 +342,8 @@ export default function LeadsPage() {
         flat.notesText,
         flat.status,
         flat.requirements,
+        flat.lastHandledByUserId,
+        flat.lastHandledByUserName,
         flat.lastSeen ? String(flat.lastSeen) : "",
         flat.lastInteraction ? String(flat.lastInteraction) : "",
         flat.latestCall
@@ -345,10 +366,7 @@ export default function LeadsPage() {
           createdAt: lc.createdAt ?? lc._raw?.createdAt ?? null,
           createdMs: lc.createdMs ?? null,
           direction:
-            lc.direction ??
-            lc._raw?.direction ??
-            lc._raw?.dir ??
-            "",
+            lc.direction ?? lc._raw?.direction ?? lc._raw?.dir ?? "",
           durationInSeconds: Number(
             lc.durationInSeconds ??
               lc._raw?.durationInSeconds ??
@@ -370,6 +388,18 @@ export default function LeadsPage() {
       return { raw: l, flat, haystack, latestCallDerived };
     });
   }, [leads]);
+
+  // 🔹 NEW: list of unique handler names for dropdown
+  const handlerOptions = useMemo(() => {
+    const s = new Set();
+    prepared.forEach((p) => {
+      const n = (p.flat.lastHandledByUserName || "").trim();
+      if (n) s.add(n);
+    });
+    return Array.from(s).sort((a, b) =>
+      a.toLowerCase().localeCompare(b.toLowerCase())
+    );
+  }, [prepared]);
 
   // date range parsing
   const dateRangeMs = useMemo(() => {
@@ -394,11 +424,19 @@ export default function LeadsPage() {
       if (tenantFilter !== "all" && flat.tenantId !== tenantFilter)
         return false;
 
-      // extra safety: if connectedTenantIds exist, do not show leads outside them
+      // safe: only show leads from connected tenants
       if (
         Array.isArray(connectedTenantIds) &&
         connectedTenantIds.length > 0 &&
         !connectedTenantIds.includes(flat.tenantId)
+      ) {
+        return false;
+      }
+
+      // 🔹 filter by user (Handled by)
+      if (
+        handlerFilter !== "all" &&
+        (flat.lastHandledByUserName || "").trim() !== handlerFilter
       ) {
         return false;
       }
@@ -443,6 +481,7 @@ export default function LeadsPage() {
     q,
     tenantFilter,
     callStatusFilter,
+    handlerFilter,
     showOnlyWithCall,
     dateField,
     dateRangeMs,
@@ -461,7 +500,7 @@ export default function LeadsPage() {
         <h2 className="leads-title">Leads — with latest call</h2>
         <p style={{ marginTop: 8 }}>
           No tenants connected to your admin profile. Connect one or more
-          tenants on the <strong>Tenants</strong> page to see leads here.
+          tenants (or set <code>tenantId</code>) to see leads here.
         </p>
       </div>
     );
@@ -473,6 +512,7 @@ export default function LeadsPage() {
     setQ("");
     setTenantFilter("all");
     setCallStatusFilter("all");
+    setHandlerFilter("all");
     setShowOnlyWithCall("any");
     setDateField("none");
     setStartDate("");
@@ -500,8 +540,8 @@ export default function LeadsPage() {
           <div>
             <div className="leads-title">Leads — with latest call</div>
             <div className="leads-sub">
-              You can export the visible rows to CSV (includes
-              latest-call fields).
+              You can export the visible rows to CSV (includes latest call +
+              handled-by fields).
             </div>
             {error && (
               <div className="leads-error">
@@ -521,7 +561,7 @@ export default function LeadsPage() {
             <div className="search-wrap" style={{ minWidth: 320 }}>
               <input
                 className="search-input"
-                placeholder="Search name, tenantId, id, phone, address, notes, latest call..."
+                placeholder="Search name, tenantId, id, phone, address, notes, handled by, latest call..."
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
               />
@@ -539,8 +579,6 @@ export default function LeadsPage() {
                     !Array.isArray(connectedTenantIds) ||
                     connectedTenantIds.length === 0
                   ) {
-                    // should not happen because of hasConnectedTenants check,
-                    // but keep fallback
                     return true;
                   }
                   return connectedTenantIds.includes(t.id);
@@ -562,6 +600,20 @@ export default function LeadsPage() {
               <option value="rejected">Rejected</option>
               <option value="answered">Answered</option>
               <option value="none">No call</option>
+            </select>
+
+            {/* 🔹 NEW: filter by handled-by user */}
+            <select
+              className="filter-select"
+              value={handlerFilter}
+              onChange={(e) => setHandlerFilter(e.target.value)}
+            >
+              <option value="all">All users</option>
+              {handlerOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
             </select>
 
             <select
@@ -676,6 +728,8 @@ export default function LeadsPage() {
                   : flat.notesText
                 : "—";
 
+              const handlerName = flat.lastHandledByUserName || "—";
+
               const lcStatus = latest ? latest.status : "none";
               const lcDirCompact = latest
                 ? compactDirection(latest.direction)
@@ -769,6 +823,13 @@ export default function LeadsPage() {
                       </div>
                       <div className="mid-value">
                         {fmtDateOnly(flat.nextFollowUp)}
+                      </div>
+                    </div>
+
+                    <div className="mid-item">
+                      <div className="mid-label">Handled by</div>
+                      <div className="mid-value">
+                        {handlerName}
                       </div>
                     </div>
 
@@ -875,6 +936,12 @@ export default function LeadsPage() {
                     </div>
 
                     <div>
+                      Handled by:{" "}
+                      <span className="muted-strong">
+                        {handlerName}
+                      </span>
+                    </div>
+                    <div>
                       Tenant:{" "}
                       <span className="muted-strong">{tenantId}</span>
                     </div>
@@ -890,9 +957,7 @@ export default function LeadsPage() {
                     <div className="lead-expanded">
                       <div className="expanded-grid">
                         <div>
-                          <div className="expanded-label">
-                            Name
-                          </div>
+                          <div className="expanded-label">Name</div>
                           <div className="expanded-value">
                             {name}
                           </div>
@@ -945,6 +1010,18 @@ export default function LeadsPage() {
                           </div>
                           <div className="expanded-value">
                             {flat.requirements || "—"}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="expanded-label">
+                            Last handled by
+                          </div>
+                          <div className="expanded-value">
+                            {flat.lastHandledByUserName || "—"}{" "}
+                            {flat.lastHandledByUserId
+                              ? `(${flat.lastHandledByUserId})`
+                              : ""}
                           </div>
                         </div>
 

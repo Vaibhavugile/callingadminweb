@@ -158,6 +158,8 @@ function callsToCsvRows(callsArray) {
     "nextFollowUp_ISO",
     "nextFollowUp_local",
     "notes",
+    "handledByUserId",
+    "handledByUserName",
   ];
   const rows = [header.join(",")];
 
@@ -176,7 +178,10 @@ function callsToCsvRows(callsArray) {
       data.durationInSeconds || data.duration || 0
     );
     const durationDisplay = fmtDuration(durationSeconds);
-    const status = deriveStatus(data.direction || data.dir || "", durationSeconds);
+    const status = deriveStatus(
+      data.direction || data.dir || "",
+      durationSeconds
+    );
     const leadName = lead.name || "";
     const leadAddress = lead.address || "";
     const nextFollowUpRaw = lead.nextFollowUp ?? data.nextFollowUp ?? null;
@@ -190,6 +195,9 @@ function callsToCsvRows(callsArray) {
       lead.notes && lead.notes.length
         ? lead.notes.map((n) => n.text).join(" • ")
         : data.notes || "";
+
+    const handledByUserId = data.handledByUserId || "";
+    const handledByUserName = data.handledByUserName || "";
 
     const cells = [
       tenantId,
@@ -207,6 +215,8 @@ function callsToCsvRows(callsArray) {
       nextFollowUpIso,
       nextFollowUpLocal,
       notes,
+      handledByUserId,
+      handledByUserName,
     ].map(escapeCsvCell);
 
     rows.push(cells.join(","));
@@ -230,7 +240,8 @@ function downloadCsv(filename, csvText) {
 
 /* ---------------- Main Page ---------------- */
 export default function CallsPage() {
-  // user profile (contains connectedTenants)
+  // user profile (may contain connectedTenants for old multi-tenant,
+  // and/or tenantId for new single-tenant mode)
   const { profile } = useUserProfile();
 
   // tenants live list (for dropdown labels)
@@ -253,17 +264,27 @@ export default function CallsPage() {
   const [qText, setQText] = useState("");
   const [filter, setFilter] = useState("all");
   const [tenantFilter, setTenantFilter] = useState("all");
+  const [handledByFilter, setHandledByFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [expandedCallId, setExpandedCallId] = useState(null);
 
   // connected tenant ids from profile
-  const connectedTenantIds = useMemo(
-    () => (profile?.connectedTenants && Array.isArray(profile.connectedTenants)
-      ? profile.connectedTenants
-      : []),
-    [profile]
-  );
+  const connectedTenantIds = useMemo(() => {
+    // New single-tenant style: profile.tenantId
+    if (profile?.tenantId) {
+      return [profile.tenantId];
+    }
+    // Legacy multi-tenant style: profile.connectedTenants = ["t1","t2",...]
+    if (
+      profile?.connectedTenants &&
+      Array.isArray(profile.connectedTenants) &&
+      profile.connectedTenants.length
+    ) {
+      return profile.connectedTenants;
+    }
+    return [];
+  }, [profile]);
 
   // compute allowedTenantIds for hook:
   // - if no connected tenants yet → pass ["__NO_TENANT__"] so you don't see others
@@ -290,6 +311,21 @@ export default function CallsPage() {
     return tenants.filter((t) => connectedTenantIds.includes(t.id));
   }, [tenants, connectedTenantIds]);
 
+  // handler (staff) options from calls (per handledByUserId)
+  const handlerOptions = useMemo(() => {
+    const map = new Map();
+    calls.forEach((c) => {
+      const data = c.data || {};
+      const uid = data.handledByUserId;
+      const uname = data.handledByUserName;
+      if (!uid) return;
+      if (!map.has(uid)) {
+        map.set(uid, uname || uid);
+      }
+    });
+    return Array.from(map.entries()).map(([id, name]) => ({ id, name }));
+  }, [calls]);
+
   // parsed range in ms
   const range = useMemo(() => {
     const s = startDate ? Date.parse(startDate + "T00:00:00") : null;
@@ -315,6 +351,12 @@ export default function CallsPage() {
       // tenant already restricted by hook, but re-check for safety in UI filter
       const tenantId = c.tenantId || data.tenantId || lead.tenantId || null;
       if (tenantFilter !== "all" && tenantId !== tenantFilter) return false;
+
+      // handler filter (per staff member based on handledByUserId)
+      if (handledByFilter !== "all") {
+        const uid = data.handledByUserId || "";
+        if (uid !== handledByFilter) return false;
+      }
 
       // direction / status filter
       if (filter === "inbound" && !dir.includes("in")) return false;
@@ -351,6 +393,8 @@ export default function CallsPage() {
         lead.address,
         ...(Array.isArray(lead.notes) ? lead.notes.map((n) => n.text) : []),
         data.notes,
+        data.handledByUserName,
+        data.handledByUserId,
       ]
         .filter(Boolean)
         .join(" ")
@@ -358,11 +402,12 @@ export default function CallsPage() {
 
       return hay.includes(s);
     });
-  }, [calls, qText, filter, tenantFilter, range]);
+  }, [calls, qText, filter, tenantFilter, handledByFilter, range]);
 
   // security
   if (!profile) return <div className="p-6">Loading profile…</div>;
-  if (profile.role !== "admin") return <div className="p-6">Access denied</div>;
+  if (profile.role !== "admin")
+    return <div className="p-6">Access denied</div>;
 
   const toggleExpand = (id) =>
     setExpandedCallId((cur) => (cur === id ? null : id));
@@ -371,6 +416,7 @@ export default function CallsPage() {
     setQText("");
     setFilter("all");
     setTenantFilter("all");
+    setHandledByFilter("all");
     setStartDate("");
     setEndDate("");
   };
@@ -396,7 +442,8 @@ export default function CallsPage() {
           <div>
             <h1 className="calls-title">All Calls</h1>
             <p className="calls-sub">
-              Realtime — newest first. Filter and export visible rows as CSV.
+              Realtime — newest first. Filter by user, status and export visible
+              rows as CSV.
             </p>
           </div>
 
@@ -404,15 +451,12 @@ export default function CallsPage() {
             <div className="search-wrap">
               <input
                 className="search-input"
-                placeholder="Search tenant, name, phone, address, notes..."
+                placeholder="Search tenant, name, phone, notes, handled by..."
                 value={qText}
                 onChange={(e) => setQText(e.target.value)}
               />
               {qText && (
-                <button
-                  className="clear-btn"
-                  onClick={() => setQText("")}
-                >
+                <button className="clear-btn" onClick={() => setQText("")}>
                   ✕
                 </button>
               )}
@@ -430,15 +474,32 @@ export default function CallsPage() {
               <option value="rejected">Rejected</option>
             </select>
 
+            {/* Tenant filter (multi-tenant compatible, single-tenant becomes 1 option) */}
             <select
               className="filter-select"
               value={tenantFilter}
               onChange={(e) => setTenantFilter(e.target.value)}
             >
-              <option value="all">All connected</option>
+              <option value="all">
+                {visibleTenants.length <= 1 ? "All" : "All connected"}
+              </option>
               {visibleTenants.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.id}
+                </option>
+              ))}
+            </select>
+
+            {/* NEW: handledBy (staff) filter */}
+            <select
+              className="filter-select"
+              value={handledByFilter}
+              onChange={(e) => setHandledByFilter(e.target.value)}
+            >
+              <option value="all">All users</option>
+              {handlerOptions.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name || h.id}
                 </option>
               ))}
             </select>
@@ -459,11 +520,7 @@ export default function CallsPage() {
               />
             </div>
 
-            <button
-              className="reset-btn"
-              onClick={resetFilters}
-              title="Reset filters"
-            >
+            <button className="reset-btn" onClick={resetFilters} title="Reset filters">
               Reset
             </button>
 
@@ -505,11 +562,8 @@ export default function CallsPage() {
                   : null);
               const tenant =
                 c.tenantId || data.tenantId || lead.tenantId || "—";
-              const phone =
-                data.phoneNumber || data.from || lead.phone || "—";
-              const direction = compactDirection(
-                data.direction || data.dir
-              );
+              const phone = data.phoneNumber || data.from || lead.phone || "—";
+              const direction = compactDirection(data.direction || data.dir);
               const durationSec = Number(
                 data.durationInSeconds || data.duration || 0
               );
@@ -523,6 +577,9 @@ export default function CallsPage() {
               const nextFollowUpDisplay = nextFollowUpRaw
                 ? fmtDisplayTimestamp(nextFollowUpRaw)
                 : "—";
+
+              const handlerName =
+                data.handledByUserName || data.handledByUserId || "—";
 
               return (
                 <article
@@ -581,10 +638,7 @@ export default function CallsPage() {
                         ) : direction === "OUT" ? (
                           <ArrowOutIcon />
                         ) : null}
-                        <span
-                          className="dir-text"
-                          style={{ marginLeft: 8 }}
-                        >
+                        <span className="dir-text" style={{ marginLeft: 8 }}>
                           {direction}
                         </span>
                       </span>
@@ -593,8 +647,7 @@ export default function CallsPage() {
                         {fmtDuration(durationSec)}
                       </span>
 
-                      {(status === "Missed" ||
-                        status === "Rejected") && (
+                      {(status === "Missed" || status === "Rejected") && (
                         <span className="status-pill">{status}</span>
                       )}
                     </div>
@@ -614,6 +667,10 @@ export default function CallsPage() {
                     <div className="call-lead">
                       Lead:{" "}
                       <span className="muted-strong">{c.leadId}</span>
+                    </div>
+                    <div className="call-assignee">
+                      By:{" "}
+                      <span className="muted-strong">{handlerName}</span>
                     </div>
                     <div className="call-meta">ID: {c.id}</div>
                   </div>
@@ -663,6 +720,15 @@ export default function CallsPage() {
                           </div>
                           <div className="expanded-value">
                             {nextFollowUpDisplay}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="expanded-label">
+                            Handled by
+                          </div>
+                          <div className="expanded-value">
+                            {handlerName}
                           </div>
                         </div>
 
