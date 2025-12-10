@@ -387,7 +387,7 @@ export default function Landing() {
               <div className="landing-hero-highlights" style={{ marginTop: 12 }}>
                 <div className="highlight-pill">📞 Auto call logging</div>
                 <div className="highlight-pill">⚡ Missed / Rejected detection</div>
-                <div className="highlight-pill">🧮 Admin multi-tenant view</div>
+                <div className="highlight-pill">🧮 Admin multi-user view</div>
                 <div className="highlight-pill">📊 CSV export</div>
               </div>
             </div>
@@ -444,7 +444,7 @@ export default function Landing() {
                   <div className="mini-avatar">AD</div>
                   <div className="mini-text">
                     <div className="mini-title">Admin overview</div>
-                    <div className="mini-sub">3 tenants connected · Live sync</div>
+                    <div className="mini-sub">3 users connected · Live sync</div>
                   </div>
                   <span className="mini-status-pill green">Online</span>
                 </div>
@@ -465,7 +465,7 @@ export default function Landing() {
               <div className="feature-card"><div className="feature-icon">📱</div><h3>Sync from phone call log</h3><p>Capture calls directly from your call log — inbound and outbound.</p></div>
               <div className="feature-card"><div className="feature-icon">🎯</div><h3>Missed &amp; rejected detection</h3><p>Smart logic to mark calls as <strong>Missed</strong> or <strong>Rejected</strong>.</p></div>
               <div className="feature-card"><div className="feature-icon">👥</div><h3>Leads with latest call</h3><p>Each lead shows the most recent call, status and follow-up date.</p></div>
-              <div className="feature-card"><div className="feature-icon">🧑‍💼</div><h3>Multi-tenant admin</h3><p>Admins can connect specific tenants and see only those accounts.</p></div>
+              <div className="feature-card"><div className="feature-icon">🧑‍💼</div><h3>Multi-user admin</h3><p>Admins can connect specific users and see only those accounts.</p></div>
               <div className="feature-card"><div className="feature-icon">📊</div><h3>Clean analytics</h3><p>Quick overview of total calls, inbound vs outbound, missed vs rejected.</p></div>
               <div className="feature-card"><div className="feature-icon">⬇️</div><h3>CSV exports</h3><p>Export filtered calls and leads straight to CSV for reports.</p></div>
             </div>
@@ -479,7 +479,7 @@ export default function Landing() {
             </div>
 
             <div className="steps-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-              <div className="step-card"><div className="step-number">1</div><h3>Install and connect</h3><p>Log in to the admin dashboard and create tenant accounts.</p></div>
+              <div className="step-card"><div className="step-number">1</div><h3>Install and connect</h3><p>Log in to the admin dashboard and create user accounts.</p></div>
               <div className="step-card"><div className="step-number">2</div><h3>Sync call activity</h3><p>Use the mobile app to sync calls from your phone log.</p></div>
               <div className="step-card"><div className="step-number">3</div><h3>Work your leads</h3><p>See all calls and leads in one place and export if needed.</p></div>
             </div>
@@ -489,9 +489,9 @@ export default function Landing() {
           <section id="pricing" className="landing-section" style={{ marginTop: 60 }}>
             <div className="section-heading"><h2>Simple pricing</h2><p style={{ color: "var(--text-muted)" }}>Start small, grow with your team. No complicated plans.</p></div>
             <div className="pricing-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 18 }}>
-              <div className="pricing-card"><div className="pricing-label">For single business</div><div className="pricing-price"><span className="pricing-currency">₹</span>— <span className="pricing-period">/ month</span></div><p className="pricing-note">Placeholder block.</p><ul className="pricing-list"><li>1 tenant</li><li>Unlimited calls &amp; leads</li></ul><a href="/login" className="btn-primary btn-full">Use for my business</a></div>
+              <div className="pricing-card"><div className="pricing-label">For single business</div><div className="pricing-price"><span className="pricing-currency">₹</span>— <span className="pricing-period">/ month</span></div><p className="pricing-note">Placeholder block.</p><ul className="pricing-list"><li>1 user</li><li>Unlimited calls &amp; leads</li></ul><a href="/login" className="btn-primary btn-full">Use for my business</a></div>
 
-              <div className="pricing-card featured"><div className="pricing-label">For agencies / admins</div><div className="pricing-price"><span className="pricing-currency">₹</span>— <span className="pricing-period">/ month</span></div><p className="pricing-note">Manage multiple tenants.</p><ul className="pricing-list"><li>Multiple tenants</li><li>Admin dashboard &amp; filters</li></ul><a href="/login" className="btn-primary btn-full">I\u2019m an admin / reseller</a></div>
+              <div className="pricing-card featured"><div className="pricing-label">For agencies / admins</div><div className="pricing-price"><span className="pricing-currency">₹</span>— <span className="pricing-period">/ month</span></div><p className="pricing-note">Manage multiple users.</p><ul className="pricing-list"><li>Multiple users</li><li>Admin dashboard &amp; filters</li></ul><a href="/login" className="btn-primary btn-full">I\u2019m an admin / reseller</a></div>
             </div>
           </section>
 
@@ -499,7 +499,7 @@ export default function Landing() {
           <section id="faq" className="landing-section landing-section-alt" style={{ marginTop: 60 }}>
             <div className="section-heading"><h2>FAQ</h2><p style={{ color: "var(--text-muted)" }}>Quick answers to common questions.</p></div>
             <div className="faq-grid" style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 16 }}>
-              <div className="faq-item"><h3>Is this only for one business?</h3><p>No. You can create multiple tenants.</p></div>
+              <div className="faq-item"><h3>Is this only for one business?</h3><p>No. You can create multiple users.</p></div>
               <div className="faq-item"><h3>How do missed / rejected calls work?</h3><p><strong>Missed</strong> = inbound + 0s or outcome 'missed'.</p></div>
               <div className="faq-item"><h3>Can I export data?</h3><p>Yes. Both Calls and Leads pages have CSV export.</p></div>
               <div className="faq-item"><h3>Who is this for?</h3><p>Anyone who closes business on calls: agencies, studios, small businesses.</p></div>
@@ -511,7 +511,7 @@ export default function Landing() {
             <div className="landing-cta-inner">
               <div>
                 <h2>Ready to see every lead your calls create?</h2>
-                <p style={{ color: "var(--text-muted)" }}>Connect your phone calls to a clean dashboard and stay on top of follow-ups, missed calls and tenants.</p>
+                <p style={{ color: "var(--text-muted)" }}>Connect your phone calls to a clean dashboard and stay on top of follow-ups, missed calls and users.</p>
               </div>
               <div className="landing-cta-actions">
                 <a href="/login" className="btn-primary btn-lg">Open Dashboard</a>
